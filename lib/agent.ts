@@ -1,6 +1,7 @@
 import { durableAgent, type HostTool, virtual } from "durable-harness";
 import { workspaceInstructions, workspaceTools } from "durable-harness/tools";
 import { nanocodeHarness } from "../src/index.ts";
+import { model, provider } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
 export const workspace = virtual();
@@ -11,8 +12,8 @@ export const appTools = (record: (charge: Charge) => Promise<void> | void): Host
 
 export const agent = durableAgent({
   harness: nanocodeHarness({
-    provider: process.env.NANOCODE_PROVIDER === "codex" ? "codex" : "claude",
-    model: process.env.NANOCODE_MODEL ?? (process.env.NANOCODE_PROVIDER === "codex" ? "gpt-6-luna" : "claude-sonnet-5-5"),
+    provider,
+    model,
     instructions: INSTRUCTIONS,
     durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
     tools: appTools(charge => console.log(JSON.stringify({ charge }))),
