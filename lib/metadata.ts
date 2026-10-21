@@ -3,8 +3,6 @@ import { href } from "@/lib/base";
 
 const origin = "https://nanocode.xyz";
 
-export const frame = "if (self !== top) document.documentElement.setAttribute('data-xframe', '')";
-
 export function pageMetadata({ description, path, player = false, title }: { description: string; path: string; player?: boolean; title: string }): Metadata {
   const url = `${origin}${href(path)}`;
   const image = { alt: title, height: 630, type: "image/png", url: `${origin}/og${href(path)}.png`, width: 1200 };
