@@ -11,7 +11,7 @@ const sections = [
 
 const experiments = [
   { href: `${site}/docs/guides/xframes`, label: "xframes" },
-  { href: `${site}/docs/guides/mpp-payments`, label: "nanocode-machines" },
+  { href: `${site}/machines/`, label: "nanocode-machines" },
   { href: `${site}/docs/guides/nanocode-ts`, label: "nanocode-ts" },
   { current: true, href: `${site}/vercel`, label: "nanocode on Vercel" },
   { href: `${site}/cloudflare/`, label: "nanocode on Cloudflare" },
