@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { href } from "@/lib/base";
 import type { Selection } from "@/lib/settings";
 
 type Kind = "assistant" | "error" | "reasoning" | "tool" | "user";
@@ -185,7 +186,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
 
   const reconnect = async (id: string) => {
     while (cursor.current) {
-      const settled = await fetch(`/api/chat?sessionId=${encodeURIComponent(id)}&cursor=${encodeURIComponent(cursor.current)}`, { headers: headers() }).then(follow, () => false);
+      const settled = await fetch(`${href("/api/chat")}?sessionId=${encodeURIComponent(id)}&cursor=${encodeURIComponent(cursor.current)}`, { headers: headers() }).then(follow, () => false);
       if (settled) return;
       await new Promise(resolve => setTimeout(resolve, RECONNECT_MS));
     }
@@ -222,7 +223,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     note("user", text);
     save({ open: true, selection });
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(session ? { sessionId: session, text } : { harness: selection.provider, model: selection.model, text }) });
+      const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(session ? { sessionId: session, text } : { harness: selection.provider, model: selection.model, text }) });
       const id = response.headers.get("x-session-id") ?? session;
       if (id && id !== session) {
         setSession(id);
@@ -238,7 +239,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
 
   const crash = async () => {
     if (!session) return note("error", "Start a session before arming a crash.");
-    const response = await fetch("/api/chaos", { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ sessionId: session, at: "tool", afterMs: 1500 }) });
+    const response = await fetch(href("/api/chaos"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ sessionId: session, at: "tool", afterMs: 1500 }) });
     if (response.ok) note("tool", "Armed: the next tool call kills its Function 1.5 s in.");
     else note("error", `${response.status} ${await response.text()}`);
   };

@@ -1,6 +1,6 @@
 import { agent, durability } from "@/lib/agent";
 import { authorize, isPublic, MAX_PROMPT_CHARACTERS, MAX_PROMPTS_PER_SESSION } from "@/lib/authorize";
-import { harnesses, selection } from "@/lib/settings";
+import { defaultSelection, harnesses, selection } from "@/lib/settings";
 
 export const maxDuration = 300;
 
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return chat.POST(request);
   }
   if (body.sessionId !== undefined || typeof body.text !== "string" || !body.text) return chat.POST(request);
-  const chosen = selection(body.harness, body.model);
+  const chosen = body.harness === undefined && body.model === undefined ? defaultSelection : selection(body.harness, body.model);
   if (!chosen) return new Response(`harness and model must name one of ${harnesses.map(entry => `${entry.id} (${entry.models.map(model => model.id).join(", ")})`).join(" or ")}`, { status: 400 });
   if (typeof authorize === "function") {
     try { await authorize(request); }

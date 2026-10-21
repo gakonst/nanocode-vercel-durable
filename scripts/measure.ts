@@ -25,7 +25,7 @@ const headers: Record<string, string> = {
 async function turn(sessionId: string | undefined, prompt: string): Promise<{ turn: Turn; sessionId: string }> {
   const started = performance.now();
   const at = () => performance.now() - started;
-  const response = await fetch(new URL("/api/chat", target), { method: "POST", headers, body: JSON.stringify({ sessionId, text: prompt }), signal: AbortSignal.timeout(TURN_TIMEOUT_MS) });
+  const response = await fetch(`${target.replace(/\/$/, "")}/api/chat`, { method: "POST", headers, body: JSON.stringify({ sessionId, text: prompt }), signal: AbortSignal.timeout(TURN_TIMEOUT_MS) });
   if (!response.ok || !response.body) throw new Error(`${response.status} ${await response.text()}`);
   const result: Turn = { prompt, headers_ms: at(), first_event_ms: null, first_text_ms: null, turn_ms: null, idle_ms: null, end_ms: null, events: 0, timeline: [] };
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();

@@ -1,3 +1,4 @@
+import { href } from "@/lib/base";
 import { defaultSelection, harnesses } from "@/lib/settings";
 import { Chat } from "./chat";
 
@@ -20,7 +21,7 @@ export default function Home() {
       <Chat chaos={process.env.HARNESS_CHAOS === "1"} defaultSelection={defaultSelection} harnesses={harnesses} needsToken={!!process.env.CHAT_TOKEN} suggestions={suggestions} />
 
       <p>
-        <a href="/how-it-works">Read how it works →</a>
+        <a href={href("/how-it-works")}>Read how it works →</a>
       </p>
     </div>
   );
