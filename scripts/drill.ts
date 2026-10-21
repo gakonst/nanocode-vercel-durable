@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Durability } from "../src/index.ts";
+import type { Durability } from "nanocode-ts/vercel";
 import type { ScriptedRequest } from "./scripted.ts";
 
 type Provider = "claude" | "codex";
@@ -34,7 +34,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   process.env.CHARGE_CONFIRM_MS = String(CHARGE_CONFIRM_MS);
   const [{ durableAgent, getWorld, isSettled }, nanocode, { scriptedDispatch }, { INSTRUCTIONS, appTools }] = await Promise.all([
     import("durable-harness"),
-    import("../src/index.ts"),
+    import("nanocode-ts/vercel"),
     import("./scripted.ts"),
     import("../lib/agent.ts"),
   ]);

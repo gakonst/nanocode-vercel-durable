@@ -3,7 +3,7 @@ export const metadata = {
   title: "How It Works · nanocode on Vercel",
 };
 
-const diagram = `browser ─POST─▶ chat route ─drive─▶ nanocode-wasm ─▶ AI Gateway
+const diagram = `browser ─POST─▶ chat route ─drive─▶ nanocode-ts ─▶ AI Gateway
                     │                   │
                     │ send              │ SQL batches, tool steps
                     ▼                   ▼
@@ -28,7 +28,7 @@ await ctx.effect(\`sql:\${n}\`, {
 
 const agent = `import { durableAgent, virtual } from 'durable-harness'
 import { workspaceTools } from 'durable-harness/tools'
-import { nanocodeHarness } from '../src/index.ts'
+import { nanocodeHarness } from 'nanocode-ts/vercel'
 
 // A nanocode agent with durable-harness's virtual workspace
 export const agent = durableAgent({
@@ -77,15 +77,15 @@ export default function HowItWorks() {
 
       <h2>The Agent</h2>
       <p>
-        <code>nanocodeHarness</code> is a durable-harness harness: a name and a <code>drive</code> function that the kernel calls for each delivery. <code>durableAgent</code> adds the chat route, the queue consumer and the session API.
+        <code>nanocodeHarness</code> from <code>nanocode-ts/vercel</code> is a durable-harness harness: a name and a <code>drive</code> function that the kernel calls for each delivery. <code>durableAgent</code> adds the chat route, the queue consumer and the session API.
       </p>
       <Code title="lib/agent.ts">{agent}</Code>
 
       <h2>The Journal</h2>
       <p>
-        nanocode keeps its state in SQLite through the <code>SqlHost</code> interface of nanocode-wasm. The harness runs each transaction on an in-memory database and records every write in a step named <code>nanocode.sql</code>, keyed by its position in the log.
+        nanocode keeps its state in SQLite through the <code>SqlHost</code> interface of nanocode-ts. The harness runs each transaction on an in-memory database and records every write in a step named <code>nanocode.sql</code>, keyed by its position in the log.
       </p>
-      <Code title="src/journal.ts">{journal}</Code>
+      <Code title="nanocode-ts/src/vercel/journal.ts">{journal}</Code>
       <p>
         A new drive replays the committed batches in order before it opens nanocode. The kernel keeps the first step for each key and ignores the steps of a stale drive, so every reader replays the same sequence.
       </p>
@@ -149,9 +149,10 @@ export default function HowItWorks() {
 
       <h2>More</h2>
       <div className="cards">
-        <a className="card" href="https://github.com/gakonst/nanocode-vercel-durable"><span className="card-title">Source →</span><span>The harness, the journal, the app and the crash drill.</span></a>
+        <a className="card" href="https://github.com/gakonst/nanocode-vercel-durable"><span className="card-title">Source →</span><span>The app, its tools and the crash drill.</span></a>
+        <a className="card" href="https://github.com/gakonst/nanocode-ts"><span className="card-title">nanocode-ts →</span><span>The harness and the journal, as nanocode-ts/vercel.</span></a>
         <a className="card" href="https://vercel.com/blog/making-every-harness-durable"><span className="card-title">durable-harness →</span><span>How Vercel makes Pi, OpenCode, Claude Code and Codex durable.</span></a>
-        <a className="card" href="https://nanocode.xyz/docs/introduction/getting-started"><span className="card-title">nanocode docs →</span><span>The SDK, its runtime and nanocode-wasm.</span></a>
+        <a className="card" href="https://nanocode.xyz/docs/introduction/getting-started"><span className="card-title">nanocode docs →</span><span>The SDK, its runtime and nanocode-ts.</span></a>
         <a className="card" href="https://workflow-sdk.dev/worlds"><span className="card-title">Worlds →</span><span>The log, queue and stream behind every session.</span></a>
       </div>
     </article>

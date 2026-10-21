@@ -13,13 +13,13 @@
     "start": "next start",
     "check": "tsc --noEmit",
     "cli": "node --disable-warning=ExperimentalWarning scripts/cli.ts",
-    "drill": "node --disable-warning=ExperimentalWarning scripts/drill.ts",
-    "vendor": "node scripts/vendor.mjs"
+    "drill": "node --disable-warning=ExperimentalWarning scripts/drill.ts"
   },
   "dependencies": {
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
     "just-bash": "3.6.0",
+    "nanocode-ts": "github:gakonst/nanocode-ts#4cdd87b00dab1534932d0db179ffe07344eab072",
     "next": "16.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"

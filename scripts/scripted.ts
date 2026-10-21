@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import type { Dispatch } from "../src/index.ts";
+import type { Dispatch } from "nanocode-ts/vercel";
 
 export type ScriptedRequest = {
   provider: "claude" | "codex";

@@ -1,6 +1,6 @@
 import { getWorld, isSettled } from "durable-harness";
 import { agent } from "../lib/agent.ts";
-import { committedBatches, isIdle, openReader } from "../src/index.ts";
+import { committedBatches, isIdle, openReader } from "nanocode-ts/vercel";
 
 const args = process.argv.slice(2);
 const resumed = args[0]?.startsWith("wrun_") ? args.shift() : undefined;

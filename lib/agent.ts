@@ -1,6 +1,6 @@
 import { durableAgent, type HostTool, virtual } from "durable-harness";
 import { workspaceInstructions, workspaceTools } from "durable-harness/tools";
-import { nanocodeHarness } from "../src/index.ts";
+import { nanocodeHarness } from "nanocode-ts/vercel";
 import { model, provider } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
