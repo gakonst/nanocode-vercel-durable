@@ -36,7 +36,7 @@ const RESULT_CHARACTERS = 160;
 
 const TYPING_DELAY_MS = 500;
 
-const REVEAL_MS = 100;
+const REVEAL_MS = 30;
 
 const FRAME_MS = 16;
 
@@ -58,6 +58,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const frame = useRef(0);
   const clock = useRef(0);
   const asking = useRef(0);
+  const warmed = useRef<{ key: string; session: Promise<string | undefined> } | undefined>(undefined);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -324,6 +325,15 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     else void response.body?.cancel();
   };
 
+  const chosen = `${selection.provider}/${selection.model}/${selection.thinking}`;
+
+  const warm = (value: string) => {
+    if (session || busy || !value || value.startsWith("/") || warmed.current?.key === chosen) return;
+    const body = JSON.stringify({ effort: selection.thinking, harness: selection.provider, model: selection.model, warm: true });
+    const started = fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body }).then(async response => response.ok ? (await response.json() as { sessionId?: string }).sessionId : undefined, () => undefined);
+    warmed.current = { key: chosen, session: started };
+  };
+
   const ask = async (text: string) => {
     if (!text || command(text)) return;
     if (busy) return void steer(text);
@@ -333,8 +343,11 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     note("user", text);
     save({ open: true, selection });
     try {
-      const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(session ? { sessionId: session, text } : { effort: selection.thinking, harness: selection.provider, model: selection.model, text }) });
-      const id = response.headers.get("x-session-id") ?? session;
+      const started = !session && warmed.current?.key === chosen ? await warmed.current.session : undefined;
+      warmed.current = undefined;
+      const existing = session ?? started;
+      const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(existing ? { sessionId: existing, text } : { effort: selection.thinking, harness: selection.provider, model: selection.model, text }) });
+      const id = response.headers.get("x-session-id") ?? existing;
       if (id && id !== session) {
         setSession(id);
         save({ session: id });
@@ -365,6 +378,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     setLive(null);
     setSession(undefined);
     setEntries([]);
+    warmed.current = undefined;
   };
 
   const submit = (event: FormEvent) => {
@@ -461,6 +475,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
           onChange={event => {
             setPrompt(event.target.value);
             if (picker?.kind === "model") setHighlight(0);
+            else warm(event.target.value);
           }}
           onKeyDown={event => {
             if (picker || choices.length > 0) {

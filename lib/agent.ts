@@ -1,6 +1,7 @@
 import { durableAgent, type HostTool, virtual } from "durable-harness";
 import { workspaceInstructions, workspaceTools } from "durable-harness/tools";
 import { nanocodeHarness } from "nanocode-ts/vercel";
+import { isPublic, MAX_PROMPTS_PER_SESSION } from "./authorize.ts";
 import { model, provider } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
@@ -20,6 +21,7 @@ export const agent = durableAgent({
     durability,
     tools: appTools(charge => console.log(JSON.stringify({ charge }))),
     report: drive => console.log(JSON.stringify({ drive })),
+    ...(isPublic ? { maxPrompts: MAX_PROMPTS_PER_SESSION } : {}),
   }),
   durability,
   marks: process.env.HARNESS_MARKS === "1",
