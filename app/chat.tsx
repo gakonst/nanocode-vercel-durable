@@ -12,9 +12,9 @@ type Harness = { id: Selection["provider"]; label: string; models: Model[] };
 
 type Saved = { cursor?: string; entries: Entry[]; open?: boolean; selection?: Selection; session?: string };
 
-type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean; kind?: Kind; text?: string; turn?: number; thinking?: Thinking };
+type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean; kind?: Kind; text?: string; turn?: number; thinking?: Thinking; item?: string };
 
-type Stream = { kind?: "assistant" | "reasoning"; posted: number; shown: number; text: string };
+type Stream = { kind?: "assistant" | "reasoning"; item?: string; posted: number; shown: number; text: string };
 
 type Picker = { kind: "model" } | { kind: "thinking"; model: string };
 
@@ -103,9 +103,10 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
       const current = stream.current;
       const next = queue.current[0];
       const kind = next?.type === "text" ? "assistant" : next?.type === "reasoning" ? "reasoning" : undefined;
-      if (next && kind && (!current.kind || current.kind === kind)) {
+      if (next && kind && (!current.kind || (current.kind === kind && current.item === next.item))) {
         queue.current.shift();
         current.kind = kind;
+        current.item = next.item;
         current.text += next.delta ?? "";
         continue;
       }
@@ -136,6 +137,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     flush();
     if (event.type === "text" || event.type === "reasoning") {
       stream.current.kind = event.type === "text" ? "assistant" : "reasoning";
+      stream.current.item = event.item;
       stream.current.text = event.delta ?? "";
     } else if (event.type === "note" && event.kind) add({ kind: event.kind, text: event.text ?? "" });
     else if (event.type === "done") {
@@ -150,6 +152,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     else if (event.type === "retrying") add({ kind: "tool", text: `Retrying: ${JSON.stringify(event.error ?? event.message ?? "")}` });
     else if (event.type === "turn" && event.status !== "completed") add({ kind: "error", text: `The turn ${event.status}: ${JSON.stringify(event.error ?? "")}` });
     else if (event.type === "error") add({ kind: "error", text: event.message ?? JSON.stringify(event) });
+    else if (event.type === "steered") add({ kind: "tool", text: "steered into the running turn" });
     else if (event.type === "effort" && event.thinking) {
       const thinking = event.thinking;
       setSelection(current => {
@@ -310,8 +313,20 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     return true;
   };
 
+  const steer = async (text: string) => {
+    if (!session) return;
+    setPrompt("");
+    note("user", text);
+    const kind = /^\/effort\s/.test(text) ? "prompt" : "steer";
+    const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ kind, sessionId: session, text }) }).catch((error: unknown) => error instanceof Error ? error : new Error(String(error)));
+    if (response instanceof Error) return note("error", response.message);
+    if (!response.ok) note("error", `${response.status} ${await response.text()}`);
+    else void response.body?.cancel();
+  };
+
   const ask = async (text: string) => {
-    if (!text || busy || command(text)) return;
+    if (!text || command(text)) return;
+    if (busy) return void steer(text);
     const mine = ++asking.current;
     setPrompt("");
     setBusy(true);
@@ -443,7 +458,6 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
         <textarea
           aria-label="Prompt"
           className="input"
-          disabled={busy}
           onChange={event => {
             setPrompt(event.target.value);
             if (picker?.kind === "model") setHighlight(0);
@@ -470,12 +484,12 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }}
-          placeholder={picker?.kind === "model" ? "type to filter" : "Ask the agent, or type / for commands"}
+          placeholder={picker?.kind === "model" ? "type to filter" : busy ? "Steer the running turn" : "Ask the agent, or type / for commands"}
           ref={input}
           rows={1}
           value={prompt}
         />
-        <button className="send" disabled={busy} type="submit">
+        <button className="send" type="submit">
           <kbd className="key">ENTER</kbd>
         </button>
       </form>

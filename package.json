@@ -19,7 +19,7 @@
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
     "just-bash": "3.6.0",
-    "nanocode-ts": "github:gakonst/nanocode-ts#689889797640bf83494f9f52153bbdb96657e060",
+    "nanocode-ts": "github:gakonst/nanocode-ts#e79b665113011d4f8808e867191bd92b9a775c20",
     "next": "16.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"
