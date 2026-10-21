@@ -1,7 +1,7 @@
 "use client";
 
 import { type Entry, type EntryKind, type LiveEvent, modelItems, type PickerItem, serverEvents, thinkingItems, Transcript } from "nanocode-ts/client";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
 import { Reply } from "./code";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
@@ -274,11 +274,6 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     warmed.current = undefined;
   };
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void ask(prompt.trim());
-  };
-
   const harness = harnesses.find(entry => entry.id === selection.provider) ?? harnesses[0];
   const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
   const shown = live ? [...entries, live] : entries;
@@ -360,7 +355,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
         </label>
       )}
 
-      <form className="row" onSubmit={submit}>
+      <div className="row">
         <span aria-hidden="true" className="chevron">❯</span>
         <textarea
           aria-label="Prompt"
@@ -390,17 +385,17 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
             }
             if (event.key !== "Enter" || event.shiftKey) return;
             event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
+            void ask(prompt.trim());
           }}
           placeholder={picker?.kind === "model" ? "type to filter" : busy ? "Steer the running turn" : "Ask the agent, or type / for commands"}
           ref={input}
           rows={1}
           value={prompt}
         />
-        <button className="send" type="submit">
+        <button className="send" onClick={() => void ask(prompt.trim())} type="button">
           <kbd className="key">ENTER</kbd>
         </button>
-      </form>
+      </div>
 
       <div className="suggestions">
         {suggestions.map(suggestion => (
@@ -418,6 +413,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
       <p className="status">
         <span>{`${harness.label} · ${modelLabel} · ${selection.thinking} · ${session ?? "new session"} · ${busy ? "running" : "idle"}`}</span>
         <button className="suggestion" disabled={busy} onClick={reset} type="button">New session</button>
+        <a className="site" href="https://nanocode.xyz/" rel="noreferrer" target="_blank">nanocode.xyz →</a>
       </p>
     </section>
   );

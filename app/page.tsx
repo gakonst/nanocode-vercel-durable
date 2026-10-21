@@ -1,8 +1,16 @@
 import { href } from "@/lib/base";
+import { pageMetadata } from "@/lib/metadata";
 import { defaultSelection, harnesses } from "@/lib/settings";
 import { Chat } from "./chat";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  description: "nanocode agents made durable in Vercel Functions with durable-harness.",
+  path: "/",
+  player: true,
+  title: "nanocode on Vercel",
+});
 
 const suggestions = ["Charge me $42", "Write a note", "Think about 17 × 24"];
 

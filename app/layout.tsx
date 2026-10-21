@@ -1,23 +1,19 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { href } from "@/lib/base";
-import { pageMetadata } from "@/lib/metadata";
+import { frame } from "@/lib/metadata";
 import "./globals.css";
 import { Navigation } from "./navigation";
 
 export const metadata: Metadata = {
-  ...pageMetadata({
-    description: "nanocode agents made durable in Vercel Functions with durable-harness.",
-    path: "/",
-    title: "nanocode on Vercel",
-  }),
   icons: { icon: href("/favicon.svg") },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: frame }} />
         <link as="font" crossOrigin="" href={href("/fonts/CommitMono-VF.woff2")} rel="preload" type="font/woff2" />
       </head>
       <body>
