@@ -18,7 +18,7 @@ export const harnesses: { id: ModelProvider; label: string; models: Model[] }[] 
 
 export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "claude" ? "claude" : "codex";
 
-export const model = process.env.NANOCODE_MODEL ?? (provider === "codex" ? "glm-5.3" : "claude-sonnet-5-5");
+export const model = process.env.NANOCODE_MODEL ?? (provider === "codex" ? "kimi-k3" : "claude-sonnet-5-5");
 
 export function find(chosen: string): Model | undefined {
   return harnesses.flatMap(entry => entry.models).find(candidate => candidate.id === chosen);

@@ -7,7 +7,11 @@ export const maxDuration = 300;
 
 const chat = agent.chatRoute(authorize ? { authorize } : {});
 
-export const GET = chat.GET;
+export async function GET(request: Request) {
+  if (!new URL(request.url).searchParams.has("keepwarm")) return chat.GET(request);
+  await nanocodeModule();
+  return new Response(null, { status: 204 });
+}
 
 type Body = { effort?: unknown; harness?: unknown; model?: unknown; sessionId?: unknown; text?: unknown; warm?: unknown };
 
