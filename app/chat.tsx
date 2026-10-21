@@ -16,6 +16,16 @@ type Live = { type: string; delta?: string; name?: string; args?: unknown; statu
 
 type Stream = { kind?: "assistant" | "reasoning"; posted: number; shown: number; text: string };
 
+type Picker = { kind: "model" } | { kind: "thinking"; model: string };
+
+type Item = { kind: "choice" | "header"; label: string; detail?: string; current?: boolean };
+
+const COMMANDS = [
+  { label: "/model", detail: "choose harness, model and thinking for a new session" },
+  { label: "/effort", detail: "choose the thinking of the next turns" },
+  { label: "/new", detail: "start a new session" },
+];
+
 const KEY = "nanocode-vercel-durable";
 
 const TOKEN = `${KEY}:token`;
@@ -36,7 +46,8 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const [live, setLive] = useState<Entry | null>(null);
   const [session, setSession] = useState<string>();
   const [selection, setSelection] = useState<Selection>(defaultSelection);
-  const [choosing, setChoosing] = useState(false);
+  const [picker, setPicker] = useState<Picker | null>(null);
+  const [highlight, setHighlight] = useState(0);
   const [token, setToken] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -206,7 +217,8 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     const saved: Saved = { entries: [], ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
     setEntries(saved.entries);
     setSession(saved.session);
-    if (saved.selection) setSelection({ ...saved.selection, thinking: saved.selection.thinking ?? find(saved.selection.model)?.effort ?? defaultSelection.thinking });
+    const known = saved.selection && find(saved.selection.model);
+    if (saved.selection && known) setSelection({ ...saved.selection, thinking: known.efforts.includes(saved.selection.thinking) ? saved.selection.thinking : known.effort });
     cursor.current = saved.cursor;
     setToken(localStorage.getItem(TOKEN) ?? "");
     if (saved.open && saved.session) {
@@ -225,54 +237,77 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     return () => clearTimeout(timer);
   }, [busy]);
 
+  const open = (next: Picker) => {
+    setPrompt("");
+    setPicker(next);
+    const items = next.kind === "model" ? modelItems(harnesses, selection, "") : thinkingItems(next.model, selection);
+    setHighlight(Math.max(0, items.filter(item => item.kind === "choice").findIndex(item => item.current)));
+  };
+
+  const close = () => {
+    setPicker(null);
+    setPrompt("");
+  };
+
+  const pick = (model: string) => {
+    if (session && model !== selection.model) {
+      close();
+      note("tool", "the model is fixed for this session; use /new before choosing another model");
+      return;
+    }
+    open({ kind: "thinking", model });
+  };
+
+  const think = (model: string, level: Thinking) => {
+    close();
+    if (session) {
+      if (level !== selection.thinking) void ask(`/effort ${level}`);
+      return;
+    }
+    const provider = harnesses.find(entry => entry.models.some(candidate => candidate.id === model))!.id;
+    const next = { model, provider, thinking: level };
+    setSelection(next);
+    save({ selection: next });
+    note("tool", `using ${model} · thinking ${level}`);
+  };
+
   const command = (text: string): boolean => {
     const [name, ...words] = text.split(/\s+/);
+    const argument = words.join(" ").toLowerCase();
+    if (name === "/new") {
+      setPrompt("");
+      reset();
+      note("tool", "new session");
+      return true;
+    }
     if (name === "/model") {
-      chooseModel(words.join(" ").toLowerCase());
+      if (!argument) {
+        open({ kind: "model" });
+        return true;
+      }
+      const match = harnesses.flatMap(entry => entry.models).find(model => argument.split(" ").every(word => `${model.id} ${model.name}`.toLowerCase().includes(word)));
+      if (!match) {
+        setPrompt("");
+        note("error", `no model matches "${argument}"; choose one of ${harnesses.flatMap(entry => entry.models.map(model => model.id)).join(", ")}`);
+        return true;
+      }
+      pick(match.id);
       return true;
     }
     if (name !== "/effort") return false;
     const model = find(selection.model);
-    const level = words[0]?.toLowerCase();
-    setPrompt("");
-    if (!level) {
-      setChoosing(true);
-      note("tool", `Reasoning effort is ${selection.thinking}. Pick one below, or type /effort followed by ${model?.efforts.join(", ")}.`);
+    if (!argument) {
+      open({ kind: "thinking", model: selection.model });
       return true;
     }
-    if (!model?.efforts.includes(level as Thinking)) {
-      note("error", `${model?.label ?? selection.model} takes ${model?.efforts.join(", ")}, not ${level}.`);
+    if (!model?.efforts.includes(argument as Thinking)) {
+      setPrompt("");
+      note("error", `${selection.model} takes ${model?.efforts.join("/")} thinking, not ${argument}`);
       return true;
     }
-    setChoosing(false);
     if (session) return false;
-    const next = { ...selection, thinking: level as Thinking };
-    setSelection(next);
-    save({ selection: next });
-    note("tool", `Your next session starts at ${level} effort.`);
+    think(selection.model, argument as Thinking);
     return true;
-  };
-
-  const chooseModel = (query: string) => {
-    setPrompt("");
-    if (!query) {
-      reset();
-      setChoosing(false);
-      note("tool", "Pick a harness, a model and an effort below. Your next prompt starts a new session.");
-      return;
-    }
-    const words = query.split(" ");
-    const match = harnesses.flatMap(entry => entry.models.map(model => ({ entry, model }))).find(({ entry, model }) => words.every(word => `${entry.id} ${entry.label} ${model.id} ${model.label}`.toLowerCase().includes(word)));
-    if (!match) {
-      note("error", `No model matches "${query}". Choose from ${harnesses.map(entry => `${entry.label} (${entry.models.map(model => model.label).join(", ")})`).join(" and ")}.`);
-      return;
-    }
-    const next = { model: match.model.id, provider: match.entry.id, thinking: match.model.efforts.includes(selection.thinking) ? selection.thinking : match.model.effort };
-    reset();
-    setChoosing(false);
-    setSelection(next);
-    save({ selection: next });
-    note("tool", `Your next prompt starts a new ${match.entry.label} · ${match.model.label} session at ${next.thinking} effort.`);
   };
 
   const ask = async (text: string) => {
@@ -323,10 +358,19 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   };
 
   const harness = harnesses.find(entry => entry.id === selection.provider) ?? harnesses[0];
-  const current = harness.models.find(entry => entry.id === selection.model);
-  const modelLabel = current?.label ?? selection.model;
-  const efforts = current?.efforts ?? [];
+  const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
   const shown = live ? [...entries, live] : entries;
+  const commandQuery = !picker && /^\/\S*$/.test(prompt) ? prompt : undefined;
+  const items: Item[] = picker?.kind === "model" ? modelItems(harnesses, selection, prompt) : picker?.kind === "thinking" ? thinkingItems(picker.model, selection) : COMMANDS.filter(entry => commandQuery !== undefined && entry.label.startsWith(commandQuery)).map(entry => ({ kind: "choice", ...entry }));
+  const choices = items.filter(item => item.kind === "choice");
+  const highlighted = Math.min(highlight, Math.max(0, choices.length - 1));
+  const width = Math.max(0, ...choices.map(item => item.label.length));
+  const choose = (item: Item) => {
+    if (picker?.kind === "model") pick(item.label);
+    else if (picker?.kind === "thinking") think(picker.model, item.label as Thinking);
+    else command(item.label);
+  };
+  let position = -1;
   return (
     <section
       aria-label="Agent"
@@ -338,7 +382,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
       }}
     >
       <div aria-live="polite" className="log" ref={log}>
-        {shown.length === 0 && <p className="entry entry-tool">Pick a harness and a model, then ask a question to start a turn.</p>}
+        {shown.length === 0 && <p className="entry entry-tool">Ask a question to start a turn, or type /model to choose a model.</p>}
         {shown.map((entry, index) => {
           const previous = shown[index - 1];
           const label = entry.kind === "user" ? "you" : !previous || previous.kind === "user" ? "agent" : undefined;
@@ -355,39 +399,25 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
         {typing && <><span className="speaker speaker-agent">agent</span> {live?.kind === "reasoning" ? "is thinking" : "is typing"}</>}
       </p>
 
-      {!session && (
-        <div className="row picker">
-          <span aria-hidden="true" className="chevron">❯</span>
-          <span className="picker-label">harness</span>
-          {harnesses.map(entry => (
-            <button aria-pressed={entry.id === selection.provider} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.models[0].id, provider: entry.id, thinking: entry.models[0].effort })} type="button">
-              {entry.label}
-            </button>
-          ))}
-          <span className="picker-label">model</span>
-          {harness.models.map(entry => (
-            <button aria-pressed={entry.id === selection.model} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.id, provider: harness.id, thinking: entry.efforts.includes(selection.thinking) ? selection.thinking : entry.effort })} type="button">
-              {entry.label}
-            </button>
-          ))}
-          <span className="picker-label">effort</span>
-          {efforts.map(level => (
-            <button aria-pressed={level === selection.thinking} className="option" disabled={busy} key={level} onClick={() => setSelection({ ...selection, thinking: level })} type="button">
-              {level}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {session && choosing && (
-        <div className="row picker">
-          <span aria-hidden="true" className="chevron">❯</span>
-          <span className="picker-label">effort</span>
-          {efforts.map(level => (
-            <button aria-pressed={level === selection.thinking} className="option" disabled={busy} key={level} onClick={() => void ask(`/effort ${level}`)} type="button">
-              {level}
-            </button>
-          ))}
+      {(picker || items.length > 0) && (
+        <div aria-label={picker?.kind === "model" ? "Model" : picker ? "Thinking" : "Commands"} className="picker" role="listbox">
+          {picker && <p className="picker-title">{picker.kind === "model" ? "Model" : `Thinking · ${picker.model}`}</p>}
+          {picker?.kind === "model" && <p className="picker-muted">filter: <span className="picker-query">{prompt}</span><span className="picker-caret">▏</span></p>}
+          {picker?.kind === "model" && choices.length === 0 && <p className="picker-muted">  no matches</p>}
+          {items.map(item => {
+            if (item.kind === "header") return <p className="picker-header" key={`header-${item.label}`}>{item.label}</p>;
+            position += 1;
+            const index = position;
+            return (
+              <button aria-selected={index === highlighted} className="picker-choice" key={item.label} onClick={() => choose(item)} onMouseMove={() => setHighlight(index)} role="option" style={{ gridTemplateColumns: `2ch ${width}ch 2ch auto` }} type="button">
+                <span className="picker-marker">{index === highlighted ? "›" : ""}</span>
+                <span className="picker-label">{item.label}</span>
+                <span className="picker-marker">{item.current ? "✓" : ""}</span>
+                <span className="picker-detail">{item.detail}</span>
+              </button>
+            );
+          })}
+          {picker && <p className="picker-muted">{picker.kind === "model" ? "type to filter · enter select · esc cancel" : "enter select · esc cancel"}</p>}
         </div>
       )}
 
@@ -414,13 +444,33 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
           aria-label="Prompt"
           className="input"
           disabled={busy}
-          onChange={event => setPrompt(event.target.value)}
+          onChange={event => {
+            setPrompt(event.target.value);
+            if (picker?.kind === "model") setHighlight(0);
+          }}
           onKeyDown={event => {
+            if (picker || choices.length > 0) {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                setHighlight(Math.min(Math.max(0, highlighted + (event.key === "ArrowDown" ? 1 : -1)), Math.max(0, choices.length - 1)));
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                close();
+                return;
+              }
+              if ((event.key === "Enter" && !event.shiftKey) || (event.key === "Tab" && !picker)) {
+                event.preventDefault();
+                if (choices[highlighted]) choose(choices[highlighted]);
+                return;
+              }
+            }
             if (event.key !== "Enter" || event.shiftKey) return;
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }}
-          placeholder="Ask the agent, or type /model or /effort"
+          placeholder={picker?.kind === "model" ? "type to filter" : "Ask the agent, or type / for commands"}
           ref={input}
           rows={1}
           value={prompt}
@@ -471,6 +521,20 @@ function paragraphs(text: string, from: number, final = false): { chunks: string
   const rest = text.slice(start).trim();
   if (rest) chunks.push(rest);
   return { chunks, next: text.length };
+}
+
+function modelItems(harnesses: Harness[], selection: Selection, query: string): Item[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return harnesses.flatMap(entry => {
+    const models = entry.models.map(model => ({ kind: "choice" as const, label: model.id, detail: `${model.name} · thinking ${model.efforts.join("/")}`, current: model.id === selection.model })).filter(item => words.every(word => `${item.label} ${item.detail}`.toLowerCase().includes(word)));
+    return models.length ? [{ kind: "header" as const, label: entry.label }, ...models] : [];
+  });
+}
+
+function thinkingItems(model: string, selection: Selection): Item[] {
+  const found = find(model);
+  const current = model === selection.model && found?.efforts.includes(selection.thinking) ? selection.thinking : found?.effort;
+  return (found?.efforts ?? []).map(level => ({ kind: "choice", label: level, detail: level === found?.effort ? "default" : "", current: level === current }));
 }
 
 function clip(text: string): string {

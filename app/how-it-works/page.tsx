@@ -97,7 +97,7 @@ export default function HowItWorks() {
       <ul>
         <li><strong>Submissions:</strong> The drive submits each pending message to nanocode&apos;s turn inbox with the submission id as its request id, then commits a <code>nanocode.place</code> step. A crash between the two resubmits the message, and nanocode answers <code>existing</code>.</li>
         <li><strong>Tools:</strong> Host tools are durable-harness <code>HostTool</code>s. Each call runs as a <code>tool:&lt;call id&gt;</code> step with the tool&apos;s <code>replay</code> rule, and nanocode reports an interrupted call to the model as an unknown outcome.</li>
-        <li><strong>Models:</strong> A session starts with the open-weight model the visitor picks, GLM-5.3, Kimi K3 or MiMo V2.6 Pro, and keeps it for every turn. The Codex harness sends them to the AI Gateway&apos;s Responses API with the deployment&apos;s OIDC token, as <code>zai/</code>, <code>moonshotai/</code> and <code>xiaomi/</code> ids.</li>
+        <li><strong>Models:</strong> A session keeps the harness and model the visitor picks with <code>/model</code>: Claude Haiku or Sonnet, GPT-6 Luna or Sol, or the open-weight GLM-5.3 or Kimi K3. Requests reach the AI Gateway with the deployment&apos;s OIDC token, Codex ones as <code>openai/</code>, <code>zai/</code> and <code>moonshotai/</code> ids.</li>
         <li><strong>Events:</strong> nanocode&apos;s events reach the session&apos;s live stream as <code>text</code>, <code>reasoning</code>, <code>tool_start</code>, <code>tool_end</code>, <code>turn</code> and <code>idle</code> events, which the home page renders.</li>
       </ul>
 

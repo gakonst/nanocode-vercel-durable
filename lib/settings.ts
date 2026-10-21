@@ -5,10 +5,15 @@ export type { Thinking };
 
 export type Selection = { provider: ModelProvider; model: string; thinking: Thinking };
 
-export type Model = { id: string; label: string; efforts: Thinking[]; effort: Thinking };
+export type Model = { id: string; label: string; name: string; efforts: Thinking[]; effort: Thinking };
+
+const every: Thinking[] = ["none", "low", "medium", "high", "xhigh", "max"];
+
+const thinking: Thinking[] = ["low", "medium", "high", "xhigh", "max"];
 
 export const harnesses: { id: ModelProvider; label: string; models: Model[] }[] = [
-  { id: "codex", label: "Codex", models: [{ id: "glm-5.3", label: "GLM-5.3", efforts: ["low", "medium", "high"], effort: "low" }, { id: "kimi-k3", label: "Kimi K3", efforts: ["low", "high"], effort: "low" }, { id: "mimo-v2.6-pro", label: "MiMo V2.6 Pro", efforts: ["low", "medium", "high"], effort: "low" }] },
+  { id: "claude", label: "Claude", models: [{ id: "claude-haiku-5-5", label: "Haiku 5.5", name: "Claude Haiku 5.5", efforts: every, effort: "medium" }, { id: "claude-sonnet-5-5", label: "Sonnet 5.5", name: "Claude Sonnet 5.5", efforts: thinking, effort: "high" }] },
+  { id: "codex", label: "Codex", models: [{ id: "gpt-6-luna", label: "Luna", name: "GPT-6 Luna", efforts: every, effort: "medium" }, { id: "gpt-6.1-sol", label: "Sol", name: "GPT-6.1 Sol", efforts: thinking, effort: "medium" }, { id: "glm-5.3", label: "GLM-5.3", name: "GLM-5.3", efforts: ["low", "medium", "high"], effort: "low" }, { id: "kimi-k3", label: "Kimi K3", name: "Kimi K3", efforts: ["low", "high"], effort: "low" }] },
 ];
 
 export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "claude" ? "claude" : "codex";
