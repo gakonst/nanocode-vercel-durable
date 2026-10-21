@@ -1,12 +1,17 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { href } from "@/lib/base";
+import { pageMetadata } from "@/lib/metadata";
 import "./globals.css";
 import { Navigation } from "./navigation";
 
-export const metadata = {
-  description: "nanocode agents made durable in Vercel Functions with durable-harness.",
+export const metadata: Metadata = {
+  ...pageMetadata({
+    description: "nanocode agents made durable in Vercel Functions with durable-harness.",
+    path: "/",
+    title: "nanocode on Vercel",
+  }),
   icons: { icon: href("/favicon.svg") },
-  title: "nanocode on Vercel",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

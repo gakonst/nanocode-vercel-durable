@@ -1,9 +1,11 @@
 import { href } from "@/lib/base";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata = {
+export const metadata = pageMetadata({
   description: "How nanocode on Vercel keeps a session in a Workflow run, and how a turn survives the Function that started it.",
+  path: "/how-it-works",
   title: "How It Works · nanocode on Vercel",
-};
+});
 
 const diagram = `browser ─POST─▶ chat route ─drive─▶ nanocode-ts ─▶ AI Gateway
                     │                   │
