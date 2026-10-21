@@ -1,24 +1,15 @@
 "use client";
 
+import { type Entry, type EntryKind, type LiveEvent, modelItems, type PickerItem, serverEvents, thinkingItems, Transcript } from "nanocode-ts/client";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
-
-type Kind = "assistant" | "error" | "reasoning" | "tool" | "user";
-
-type Entry = { kind: Kind; text: string };
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
 
 type Saved = { cursor?: string; entries: Entry[]; open?: boolean; selection?: Selection; session?: string };
 
-type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean; kind?: Kind; text?: string; turn?: number; thinking?: Thinking; item?: string };
-
-type Stream = { kind?: "assistant" | "reasoning"; item?: string; posted: number; shown: number; text: string };
-
 type Picker = { kind: "model" } | { kind: "thinking"; model: string };
-
-type Item = { kind: "choice" | "header"; label: string; detail?: string; current?: boolean };
 
 const COMMANDS = [
   { label: "/model", detail: "choose harness, model and thinking for a new session" },
@@ -32,13 +23,7 @@ const TOKEN = `${KEY}:token`;
 
 const RECONNECT_MS = 1000;
 
-const RESULT_CHARACTERS = 160;
-
 const TYPING_DELAY_MS = 500;
-
-const REVEAL_MS = 30;
-
-const FRAME_MS = 16;
 
 export function Chat(props: { chaos: boolean; defaultSelection: Selection; harnesses: Harness[]; needsToken: boolean; suggestions: string[] }) {
   const { chaos, defaultSelection, harnesses, needsToken, suggestions } = props;
@@ -53,10 +38,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const [busy, setBusy] = useState(false);
   const [typing, setTyping] = useState(false);
   const cursor = useRef<string | undefined>(undefined);
-  const stream = useRef<Stream>({ posted: 0, shown: 0, text: "" });
-  const queue = useRef<Live[]>([]);
-  const frame = useRef(0);
-  const clock = useRef(0);
+  const transcript = useRef<Transcript | null>(null);
   const asking = useRef(0);
   const warmed = useRef<{ key: string; session: Promise<string | undefined> } | undefined>(undefined);
   const log = useRef<HTMLDivElement>(null);
@@ -73,89 +55,16 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     return next;
   });
 
-  const flush = () => {
-    const { kind, posted, text } = stream.current;
-    if (kind === "assistant") for (const chunk of paragraphs(text, posted, true).chunks) add({ kind, text: chunk });
-    else if (kind === "reasoning" && text.trim()) add({ kind, text: text.trim() });
-    stream.current = { posted: 0, shown: 0, text: "" };
-    setLive(null);
-  };
-
-  const render = () => {
-    const current = stream.current;
-    const visible = current.text.slice(0, current.shown);
-    if (current.kind === "assistant") {
-      const { chunks, next } = paragraphs(visible, current.posted);
-      current.posted = next;
-      for (const chunk of chunks) add({ kind: current.kind, text: chunk });
-    }
-    const rest = visible.slice(current.posted).trim();
-    setLive(rest && current.kind ? { kind: current.kind, text: rest } : null);
-  };
-
-  const step = () => {
-    frame.current = 0;
-    const now = performance.now();
-    const elapsed = clock.current ? now - clock.current : 0;
-    clock.current = now;
-    const instant = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let revealed = false;
-    for (;;) {
-      const current = stream.current;
-      const next = queue.current[0];
-      const kind = next?.type === "text" ? "assistant" : next?.type === "reasoning" ? "reasoning" : undefined;
-      if (next && kind && (!current.kind || (current.kind === kind && current.item === next.item))) {
-        queue.current.shift();
-        current.kind = kind;
-        current.item = next.item;
-        current.text += next.delta ?? "";
-        continue;
-      }
-      if (current.shown < current.text.length) {
-        if (revealed) break;
-        revealed = true;
-        const backlog = current.text.length - current.shown;
-        current.shown += instant ? backlog : Math.max(1, Math.ceil(backlog * (1 - Math.exp(-elapsed / REVEAL_MS))));
-        render();
-        continue;
-      }
-      if (!next) break;
-      queue.current.shift();
-      apply(next);
-    }
-    if (queue.current.length || stream.current.shown < stream.current.text.length) frame.current = window.setTimeout(step, FRAME_MS);
-    else clock.current = 0;
-  };
-
-  const enqueue = (event: Live) => {
-    queue.current.push(event);
-    if (!frame.current) frame.current = window.setTimeout(step);
-  };
-
-  const note = (kind: Kind, text: string) => enqueue({ type: "note", kind, text });
-
-  const apply = (event: Live) => {
-    flush();
-    if (event.type === "text" || event.type === "reasoning") {
-      stream.current.kind = event.type === "text" ? "assistant" : "reasoning";
-      stream.current.item = event.item;
-      stream.current.text = event.delta ?? "";
-    } else if (event.type === "note" && event.kind) add({ kind: event.kind, text: event.text ?? "" });
-    else if (event.type === "done") {
+  const apply = (event: LiveEvent) => {
+    if (event.type === "done") {
       if (event.turn === asking.current) {
         save({ open: false });
         setBusy(false);
       }
     } else if (event.type === "idle") setBusy(false);
-    else if (event.type === "tool_start") add({ kind: "tool", text: `${event.name} ${JSON.stringify(event.args)}` });
-    else if (event.type === "tool_end") add({ kind: "tool", text: `${event.name} ${event.status}: ${clip(typeof event.result === "string" ? event.result : event.result?.text ?? "")}` });
-    else if (event.type === "chaos") add({ kind: "tool", text: event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${event.effect ?? "a step"}.` });
-    else if (event.type === "retrying") add({ kind: "tool", text: `Retrying: ${JSON.stringify(event.error ?? event.message ?? "")}` });
-    else if (event.type === "turn" && event.status !== "completed") add({ kind: "error", text: `The turn ${event.status}: ${JSON.stringify(event.error ?? "")}` });
-    else if (event.type === "error") add({ kind: "error", text: event.message ?? JSON.stringify(event) });
-    else if (event.type === "steered") add({ kind: "tool", text: "steered into the running turn" });
-    else if (event.type === "effort" && event.thinking) {
-      const thinking = event.thinking;
+    else if (event.type === "chaos") add({ kind: "tool", text: event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${typeof event.effect === "string" ? event.effect : "a step"}.` });
+    else if (event.type === "effort" && typeof event.thinking === "string") {
+      const thinking = event.thinking as Thinking;
       setSelection(current => {
         const next = { ...current, thinking };
         save({ selection: next });
@@ -165,6 +74,10 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     }
   };
 
+  transcript.current ??= new Transcript({ add, apply, live: setLive, reducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches });
+
+  const note = (kind: EntryKind, text: string) => transcript.current?.run(() => add({ kind, text }));
+
   const headers = (): HeadersInit => token ? { authorization: `Bearer ${token}` } : {};
 
   const follow = async (response: Response): Promise<boolean> => {
@@ -173,40 +86,24 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
       note("error", `${response.status} ${detail}`);
       return true;
     }
-    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffered = "";
-    for (;;) {
-      const read = await reader.read().catch(() => undefined);
-      if (!read) {
-        note("tool", "The stream dropped. Reconnecting from the last event.");
-        return false;
-      }
-      const { done, value } = read;
-      if (done) {
-        enqueue({ type: "flush" });
-        return false;
-      }
-      buffered += value;
-      let end: number;
-      while ((end = buffered.indexOf("\n\n")) >= 0) {
-        const block = buffered.slice(0, end);
-        buffered = buffered.slice(end + 2);
-        let name = "message";
-        let data = "";
-        for (const line of block.split("\n")) {
-          if (line.startsWith("id:")) {
-            cursor.current = line.slice(3).trim() || cursor.current;
-            save({ cursor: cursor.current });
-          } else if (line.startsWith("event:")) name = line.slice(6).trim();
-          else if (line.startsWith("data:")) data += line.slice(5).trim();
+    try {
+      for await (const message of serverEvents(response.body)) {
+        if (message.id) {
+          cursor.current = message.id;
+          save({ cursor: cursor.current });
         }
-        if (name === "end") {
-          enqueue({ type: "flush" });
+        if (message.event === "end") {
+          transcript.current?.run(() => {});
           return true;
         }
-        if (data) enqueue(JSON.parse(data) as Live);
+        if (message.data) transcript.current?.push(JSON.parse(message.data) as LiveEvent);
       }
+    } catch {
+      note("tool", "The stream dropped. Reconnecting from the last event.");
+      return false;
     }
+    transcript.current?.run(() => {});
+    return false;
   };
 
   const reconnect = async (id: string) => {
@@ -244,7 +141,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const open = (next: Picker) => {
     setPrompt("");
     setPicker(next);
-    const items = next.kind === "model" ? modelItems(harnesses, selection, "") : thinkingItems(next.model, selection);
+    const items = next.kind === "model" ? modelItems(harnesses, selection.model, "") : thinkingItems(find(next.model), next.model === selection.model ? selection.thinking : undefined);
     setHighlight(Math.max(0, items.filter(item => item.kind === "choice").findIndex(item => item.current)));
   };
 
@@ -356,7 +253,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     } catch (error) {
       note("error", error instanceof Error ? error.message : String(error));
     } finally {
-      enqueue({ type: "done", turn: mine });
+      transcript.current?.push({ type: "done", turn: mine });
     }
   };
 
@@ -370,12 +267,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const reset = () => {
     localStorage.removeItem(KEY);
     cursor.current = undefined;
-    clearTimeout(frame.current);
-    frame.current = 0;
-    clock.current = 0;
-    queue.current = [];
-    stream.current = { posted: 0, shown: 0, text: "" };
-    setLive(null);
+    transcript.current?.reset();
     setSession(undefined);
     setEntries([]);
     warmed.current = undefined;
@@ -390,11 +282,11 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
   const shown = live ? [...entries, live] : entries;
   const commandQuery = !picker && /^\/\S*$/.test(prompt) ? prompt : undefined;
-  const items: Item[] = picker?.kind === "model" ? modelItems(harnesses, selection, prompt) : picker?.kind === "thinking" ? thinkingItems(picker.model, selection) : COMMANDS.filter(entry => commandQuery !== undefined && entry.label.startsWith(commandQuery)).map(entry => ({ kind: "choice", ...entry }));
+  const items: PickerItem[] = picker?.kind === "model" ? modelItems(harnesses, selection.model, prompt) : picker?.kind === "thinking" ? thinkingItems(find(picker.model), picker.model === selection.model ? selection.thinking : undefined) : COMMANDS.filter(entry => commandQuery !== undefined && entry.label.startsWith(commandQuery)).map(entry => ({ kind: "choice", ...entry }));
   const choices = items.filter(item => item.kind === "choice");
   const highlighted = Math.min(highlight, Math.max(0, choices.length - 1));
   const width = Math.max(0, ...choices.map(item => item.label.length));
-  const choose = (item: Item) => {
+  const choose = (item: PickerItem) => {
     if (picker?.kind === "model") pick(item.label);
     else if (picker?.kind === "thinking") think(picker.model, item.label as Thinking);
     else command(item.label);
@@ -528,44 +420,4 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
       </p>
     </section>
   );
-}
-
-function paragraphs(text: string, from: number, final = false): { chunks: string[]; next: number } {
-  const chunks: string[] = [];
-  let start = from;
-  let fenced = (text.slice(0, from).match(/^```/gm)?.length ?? 0) % 2 === 1;
-  let index = from;
-  while (index < text.length) {
-    const line = text.indexOf("\n", index);
-    if (line === -1) break;
-    if (text.startsWith("```", index)) fenced = !fenced;
-    if (!fenced && text.startsWith("\n", line + 1)) {
-      const chunk = text.slice(start, line).trim();
-      if (chunk) chunks.push(chunk);
-      start = line + 2;
-    }
-    index = line + 1;
-  }
-  if (!final) return { chunks, next: start };
-  const rest = text.slice(start).trim();
-  if (rest) chunks.push(rest);
-  return { chunks, next: text.length };
-}
-
-function modelItems(harnesses: Harness[], selection: Selection, query: string): Item[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return harnesses.flatMap(entry => {
-    const models = entry.models.map(model => ({ kind: "choice" as const, label: model.id, detail: `${model.name} · thinking ${model.efforts.join("/")}`, current: model.id === selection.model })).filter(item => words.every(word => `${item.label} ${item.detail}`.toLowerCase().includes(word)));
-    return models.length ? [{ kind: "header" as const, label: entry.label }, ...models] : [];
-  });
-}
-
-function thinkingItems(model: string, selection: Selection): Item[] {
-  const found = find(model);
-  const current = model === selection.model && found?.efforts.includes(selection.thinking) ? selection.thinking : found?.effort;
-  return (found?.efforts ?? []).map(level => ({ kind: "choice", label: level, detail: level === found?.effort ? "default" : "", current: level === current }));
-}
-
-function clip(text: string): string {
-  return text.length > RESULT_CHARACTERS ? `${text.slice(0, RESULT_CHARACTERS)}…` : text;
 }
