@@ -20,6 +20,7 @@ const submission = prompt ? await agent.sessions.send(sessionId, prompt) : undef
 void (async () => {
   for await (const event of agent.sessions.live(sessionId, { startIndex: from, signal: stop.signal }) as AsyncIterable<{ type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string } }>) {
     if (event.type === "text") process.stdout.write(event.delta ?? "");
+    else if (event.type === "reasoning") process.stdout.write(`\x1b[2m${event.delta ?? ""}\x1b[0m`);
     else if (event.type === "tool_start") process.stdout.write(`\n[${event.name}] ${JSON.stringify(event.args)}\n`);
     else if (event.type === "tool_end") process.stdout.write(`[${event.name} ${event.status}] ${typeof event.result === "string" ? event.result : event.result?.text ?? ""}\n`);
     else if (event.type === "turn") process.stdout.write(`\n[turn ${event.status}]\n`);

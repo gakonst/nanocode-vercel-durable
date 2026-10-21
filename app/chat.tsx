@@ -1,12 +1,19 @@
 "use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import type { Selection } from "@/lib/settings";
 
-type Entry = { kind: "assistant" | "error" | "tool" | "user"; text: string };
+type Kind = "assistant" | "error" | "reasoning" | "tool" | "user";
 
-type Saved = { cursor?: string; entries: Entry[]; open?: boolean; session?: string };
+type Entry = { kind: Kind; text: string };
 
-type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean };
+type Harness = { id: Selection["provider"]; label: string; models: { id: string; label: string }[] };
+
+type Saved = { cursor?: string; entries: Entry[]; open?: boolean; selection?: Selection; session?: string };
+
+type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean; kind?: Kind; text?: string; turn?: number };
+
+type Stream = { kind?: "assistant" | "reasoning"; posted: number; shown: number; text: string };
 
 const KEY = "nanocode-vercel-durable";
 
@@ -18,16 +25,25 @@ const RESULT_CHARACTERS = 160;
 
 const TYPING_DELAY_MS = 500;
 
-export function Chat(props: { chaos: boolean; model: string; needsToken: boolean; suggestions: string[] }) {
-  const { chaos, model, needsToken, suggestions } = props;
+const REVEAL_MS = 100;
+
+const FRAME_MS = 16;
+
+export function Chat(props: { chaos: boolean; defaultSelection: Selection; harnesses: Harness[]; needsToken: boolean; suggestions: string[] }) {
+  const { chaos, defaultSelection, harnesses, needsToken, suggestions } = props;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [live, setLive] = useState<Entry | null>(null);
   const [session, setSession] = useState<string>();
+  const [selection, setSelection] = useState<Selection>(defaultSelection);
   const [token, setToken] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [typing, setTyping] = useState(false);
   const cursor = useRef<string | undefined>(undefined);
-  const reply = useRef({ posted: 0, text: "" });
+  const stream = useRef<Stream>({ posted: 0, shown: 0, text: "" });
+  const queue = useRef<Live[]>([]);
+  const frame = useRef(0);
+  const clock = useRef(0);
   const asking = useRef(0);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -44,21 +60,77 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
   });
 
   const flush = () => {
-    const { chunks } = paragraphs(reply.current.text, reply.current.posted, true);
-    reply.current = { posted: 0, text: "" };
-    for (const text of chunks) add({ kind: "assistant", text });
+    const { kind, posted, text } = stream.current;
+    if (kind === "assistant") for (const chunk of paragraphs(text, posted, true).chunks) add({ kind, text: chunk });
+    else if (kind === "reasoning" && text.trim()) add({ kind, text: text.trim() });
+    stream.current = { posted: 0, shown: 0, text: "" };
+    setLive(null);
   };
 
-  const apply = (event: Live) => {
-    if (event.type === "text") {
-      reply.current.text += event.delta ?? "";
-      const { chunks, next } = paragraphs(reply.current.text, reply.current.posted);
-      reply.current.posted = next;
-      for (const text of chunks) add({ kind: "assistant", text });
-      return;
+  const render = () => {
+    const current = stream.current;
+    const visible = current.text.slice(0, current.shown);
+    if (current.kind === "assistant") {
+      const { chunks, next } = paragraphs(visible, current.posted);
+      current.posted = next;
+      for (const chunk of chunks) add({ kind: current.kind, text: chunk });
     }
+    const rest = visible.slice(current.posted).trim();
+    setLive(rest && current.kind ? { kind: current.kind, text: rest } : null);
+  };
+
+  const step = () => {
+    frame.current = 0;
+    const now = performance.now();
+    const elapsed = clock.current ? now - clock.current : 0;
+    clock.current = now;
+    const instant = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let revealed = false;
+    for (;;) {
+      const current = stream.current;
+      const next = queue.current[0];
+      const kind = next?.type === "text" ? "assistant" : next?.type === "reasoning" ? "reasoning" : undefined;
+      if (next && kind && (!current.kind || current.kind === kind)) {
+        queue.current.shift();
+        current.kind = kind;
+        current.text += next.delta ?? "";
+        continue;
+      }
+      if (current.shown < current.text.length) {
+        if (revealed) break;
+        revealed = true;
+        const backlog = current.text.length - current.shown;
+        current.shown += instant ? backlog : Math.max(1, Math.ceil(backlog * (1 - Math.exp(-elapsed / REVEAL_MS))));
+        render();
+        continue;
+      }
+      if (!next) break;
+      queue.current.shift();
+      apply(next);
+    }
+    if (queue.current.length || stream.current.shown < stream.current.text.length) frame.current = window.setTimeout(step, FRAME_MS);
+    else clock.current = 0;
+  };
+
+  const enqueue = (event: Live) => {
+    queue.current.push(event);
+    if (!frame.current) frame.current = window.setTimeout(step);
+  };
+
+  const note = (kind: Kind, text: string) => enqueue({ type: "note", kind, text });
+
+  const apply = (event: Live) => {
     flush();
-    if (event.type === "idle") setBusy(false);
+    if (event.type === "text" || event.type === "reasoning") {
+      stream.current.kind = event.type === "text" ? "assistant" : "reasoning";
+      stream.current.text = event.delta ?? "";
+    } else if (event.type === "note" && event.kind) add({ kind: event.kind, text: event.text ?? "" });
+    else if (event.type === "done") {
+      if (event.turn === asking.current) {
+        save({ open: false });
+        setBusy(false);
+      }
+    } else if (event.type === "idle") setBusy(false);
     else if (event.type === "tool_start") add({ kind: "tool", text: `${event.name} ${JSON.stringify(event.args)}` });
     else if (event.type === "tool_end") add({ kind: "tool", text: `${event.name} ${event.status}: ${clip(typeof event.result === "string" ? event.result : event.result?.text ?? "")}` });
     else if (event.type === "chaos") add({ kind: "tool", text: event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${event.effect ?? "a step"}.` });
@@ -72,7 +144,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
   const follow = async (response: Response): Promise<boolean> => {
     if (!response.ok || !response.body) {
       const detail = await response.text();
-      add({ kind: "error", text: `${response.status} ${detail}` });
+      note("error", `${response.status} ${detail}`);
       return true;
     }
     const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -80,13 +152,12 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     for (;;) {
       const read = await reader.read().catch(() => undefined);
       if (!read) {
-        flush();
-        add({ kind: "tool", text: "The stream dropped. Reconnecting from the last event." });
+        note("tool", "The stream dropped. Reconnecting from the last event.");
         return false;
       }
       const { done, value } = read;
       if (done) {
-        flush();
+        enqueue({ type: "flush" });
         return false;
       }
       buffered += value;
@@ -104,10 +175,10 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
           else if (line.startsWith("data:")) data += line.slice(5).trim();
         }
         if (name === "end") {
-          flush();
+          enqueue({ type: "flush" });
           return true;
         }
-        if (data) apply(JSON.parse(data) as Live);
+        if (data) enqueue(JSON.parse(data) as Live);
       }
     }
   };
@@ -124,6 +195,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     const saved: Saved = { entries: [], ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
     setEntries(saved.entries);
     setSession(saved.session);
+    if (saved.selection) setSelection(saved.selection);
     cursor.current = saved.cursor;
     setToken(localStorage.getItem(TOKEN) ?? "");
     if (saved.open && saved.session) {
@@ -134,7 +206,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
 
   useEffect(() => {
     log.current?.scrollTo({ top: log.current.scrollHeight });
-  }, [entries]);
+  }, [entries, live]);
 
   useEffect(() => {
     if (!busy) return setTyping(false);
@@ -147,10 +219,10 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     const mine = ++asking.current;
     setPrompt("");
     setBusy(true);
-    add({ kind: "user", text });
-    save({ open: true });
+    note("user", text);
+    save({ open: true, selection });
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ sessionId: session, text }) });
+      const response = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(session ? { sessionId: session, text } : { harness: selection.provider, model: selection.model, text }) });
       const id = response.headers.get("x-session-id") ?? session;
       if (id && id !== session) {
         setSession(id);
@@ -158,24 +230,28 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
       }
       if (!(await follow(response)) && id) await reconnect(id);
     } catch (error) {
-      add({ kind: "error", text: error instanceof Error ? error.message : String(error) });
+      note("error", error instanceof Error ? error.message : String(error));
     } finally {
-      if (mine === asking.current) {
-        save({ open: false });
-        setBusy(false);
-      }
+      enqueue({ type: "done", turn: mine });
     }
   };
 
   const crash = async () => {
-    if (!session) return add({ kind: "error", text: "Start a session before arming a crash." });
+    if (!session) return note("error", "Start a session before arming a crash.");
     const response = await fetch("/api/chaos", { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ sessionId: session, at: "tool", afterMs: 1500 }) });
-    add(response.ok ? { kind: "tool", text: "Armed: the next tool call kills its Function 1.5 s in." } : { kind: "error", text: `${response.status} ${await response.text()}` });
+    if (response.ok) note("tool", "Armed: the next tool call kills its Function 1.5 s in.");
+    else note("error", `${response.status} ${await response.text()}`);
   };
 
   const reset = () => {
     localStorage.removeItem(KEY);
     cursor.current = undefined;
+    clearTimeout(frame.current);
+    frame.current = 0;
+    clock.current = 0;
+    queue.current = [];
+    stream.current = { posted: 0, shown: 0, text: "" };
+    setLive(null);
     setSession(undefined);
     setEntries([]);
   };
@@ -185,6 +261,9 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     void ask(prompt.trim());
   };
 
+  const harness = harnesses.find(entry => entry.id === selection.provider) ?? harnesses[0];
+  const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
+  const shown = live ? [...entries, live] : entries;
   return (
     <section
       aria-label="Agent"
@@ -196,22 +275,40 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
       }}
     >
       <div aria-live="polite" className="log" ref={log}>
-        {entries.length === 0 && <p className="entry entry-tool">Ask a question to start a turn.</p>}
-        {entries.map((entry, index) => {
-          const previous = entries[index - 1];
+        {shown.length === 0 && <p className="entry entry-tool">Pick a harness and a model, then ask a question to start a turn.</p>}
+        {shown.map((entry, index) => {
+          const previous = shown[index - 1];
           const label = entry.kind === "user" ? "you" : !previous || previous.kind === "user" ? "agent" : undefined;
           return (
             <div className="turn" key={index}>
               {label && <p className={`speaker speaker-${label}`}><span aria-hidden="true">●</span> {label}</p>}
-              <p className={`entry entry-${entry.kind}`}>{entry.text}</p>
+              <p className={`entry entry-${entry.kind}${entry === live ? " entry-live" : ""}`}>{entry.kind === "reasoning" ? entry.text.replace(/\*\*(.+?)\*\*/g, "$1") : entry.text}</p>
             </div>
           );
         })}
       </div>
 
       <p aria-live="polite" className={typing ? "typing typing-visible" : "typing"}>
-        {typing && <><span className="speaker speaker-agent">agent</span> is typing</>}
+        {typing && <><span className="speaker speaker-agent">agent</span> {live?.kind === "reasoning" ? "is thinking" : "is typing"}</>}
       </p>
+
+      {!session && (
+        <div className="row picker">
+          <span aria-hidden="true" className="chevron">❯</span>
+          <span className="picker-label">harness</span>
+          {harnesses.map(entry => (
+            <button aria-pressed={entry.id === selection.provider} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.models[0].id, provider: entry.id })} type="button">
+              {entry.label}
+            </button>
+          ))}
+          <span className="picker-label">model</span>
+          {harness.models.map(entry => (
+            <button aria-pressed={entry.id === selection.model} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.id, provider: harness.id })} type="button">
+              {entry.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {needsToken && (
         <label className="row">
@@ -266,7 +363,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
       </div>
 
       <p className="status">
-        <span>{`${model} · ${session ?? "new session"} · ${busy ? "running" : "idle"}`}</span>
+        <span>{`${harness.label} · ${modelLabel} · ${session ?? "new session"} · ${busy ? "running" : "idle"}`}</span>
         <button className="suggestion" disabled={busy} onClick={reset} type="button">New session</button>
       </p>
     </section>

@@ -1,9 +1,9 @@
-import { model } from "@/lib/settings";
+import { defaultSelection, harnesses } from "@/lib/settings";
 import { Chat } from "./chat";
 
 export const dynamic = "force-dynamic";
 
-const suggestions = ["Charge me $42", "Write a note", "List your tools"];
+const suggestions = ["Charge me $42", "Write a note", "Think about 17 × 24"];
 
 export default function Home() {
   return (
@@ -14,10 +14,10 @@ export default function Home() {
         Durable agents in Functions.
       </h1>
       <p className="lead">
-        This agent runs in a Vercel Function: the nanocode SDK compiled to WebAssembly, with its SQLite journal kept as steps of the session&apos;s Workflow run. When a Function dies mid-turn, the queue starts another that replays the log and finishes the turn. Vercel AI Gateway serves its model requests.
+        This agent runs in a Vercel Function: the nanocode SDK compiled to WebAssembly, with its Claude or Codex harness picked when the session starts and its SQLite journal kept as steps of the session&apos;s Workflow run. When a Function dies mid-turn, the queue starts another that replays the log and finishes the turn.
       </p>
 
-      <Chat chaos={process.env.HARNESS_CHAOS === "1"} model={model} needsToken={!!process.env.CHAT_TOKEN} suggestions={suggestions} />
+      <Chat chaos={process.env.HARNESS_CHAOS === "1"} defaultSelection={defaultSelection} harnesses={harnesses} needsToken={!!process.env.CHAT_TOKEN} suggestions={suggestions} />
 
       <p>
         <a href="/how-it-works">Read how it works →</a>
