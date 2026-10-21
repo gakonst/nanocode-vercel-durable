@@ -16,6 +16,8 @@ const RECONNECT_MS = 1000;
 
 const RESULT_CHARACTERS = 160;
 
+const TYPING_DELAY_MS = 500;
+
 export function Chat(props: { chaos: boolean; model: string; needsToken: boolean; suggestions: string[] }) {
   const { chaos, model, needsToken, suggestions } = props;
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -23,7 +25,9 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
   const [token, setToken] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [typing, setTyping] = useState(false);
   const cursor = useRef<string | undefined>(undefined);
+  const reply = useRef({ posted: 0, text: "" });
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -33,15 +37,27 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
   };
 
   const add = (entry: Entry) => setEntries(current => {
-    const last = current.at(-1);
-    const next = entry.kind === "assistant" && last?.kind === "assistant" ? [...current.slice(0, -1), { kind: "assistant" as const, text: last.text + entry.text }] : [...current, entry];
+    const next = [...current, entry];
     save({ entries: next });
     return next;
   });
 
+  const flush = () => {
+    const { chunks } = paragraphs(reply.current.text, reply.current.posted, true);
+    reply.current = { posted: 0, text: "" };
+    for (const text of chunks) add({ kind: "assistant", text });
+  };
+
   const apply = (event: Live) => {
-    if (event.type === "text" && event.delta) add({ kind: "assistant", text: event.delta });
-    else if (event.type === "tool_start") add({ kind: "tool", text: `${event.name} ${JSON.stringify(event.args)}` });
+    if (event.type === "text") {
+      reply.current.text += event.delta ?? "";
+      const { chunks, next } = paragraphs(reply.current.text, reply.current.posted);
+      reply.current.posted = next;
+      for (const text of chunks) add({ kind: "assistant", text });
+      return;
+    }
+    flush();
+    if (event.type === "tool_start") add({ kind: "tool", text: `${event.name} ${JSON.stringify(event.args)}` });
     else if (event.type === "tool_end") add({ kind: "tool", text: `${event.name} ${event.status}: ${clip(typeof event.result === "string" ? event.result : event.result?.text ?? "")}` });
     else if (event.type === "chaos") add({ kind: "tool", text: event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${event.effect ?? "a step"}.` });
     else if (event.type === "retrying") add({ kind: "tool", text: `Retrying: ${JSON.stringify(event.error ?? event.message ?? "")}` });
@@ -62,11 +78,15 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     for (;;) {
       const read = await reader.read().catch(() => undefined);
       if (!read) {
+        flush();
         add({ kind: "tool", text: "The stream dropped. Reconnecting from the last event." });
         return false;
       }
       const { done, value } = read;
-      if (done) return false;
+      if (done) {
+        flush();
+        return false;
+      }
       buffered += value;
       let end: number;
       while ((end = buffered.indexOf("\n\n")) >= 0) {
@@ -81,7 +101,10 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
           } else if (line.startsWith("event:")) name = line.slice(6).trim();
           else if (line.startsWith("data:")) data += line.slice(5).trim();
         }
-        if (name === "end") return true;
+        if (name === "end") {
+          flush();
+          return true;
+        }
         if (data) apply(JSON.parse(data) as Live);
       }
     }
@@ -110,6 +133,12 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
   useEffect(() => {
     log.current?.scrollTo({ top: log.current.scrollHeight });
   }, [entries]);
+
+  useEffect(() => {
+    if (!busy) return setTyping(false);
+    const timer = setTimeout(() => setTyping(true), TYPING_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [busy]);
 
   const ask = async (text: string) => {
     if (!text || busy) return;
@@ -163,12 +192,25 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     >
       <div aria-live="polite" className="log" ref={log}>
         {entries.length === 0 && <p className="entry entry-tool">Ask a question to start a turn.</p>}
-        {entries.map((entry, index) => <p className={`entry entry-${entry.kind}`} key={index}>{entry.text}</p>)}
+        {entries.map((entry, index) => {
+          const previous = entries[index - 1];
+          const label = entry.kind === "user" ? "you" : !previous || previous.kind === "user" ? "agent" : undefined;
+          return (
+            <div className="turn" key={index}>
+              {label && <p className={`speaker speaker-${label}`}><span aria-hidden="true">●</span> {label}</p>}
+              <p className={`entry entry-${entry.kind}`}>{entry.text}</p>
+            </div>
+          );
+        })}
       </div>
+
+      <p aria-live="polite" className={typing ? "typing typing-visible" : "typing"}>
+        {typing && <><span className="speaker speaker-agent">agent</span> is typing</>}
+      </p>
 
       {needsToken && (
         <label className="row">
-          <span aria-hidden="true">#</span>
+          <span aria-hidden="true" className="chevron">#</span>
           <input
             aria-label="Access token"
             className="input"
@@ -184,7 +226,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
       )}
 
       <form className="row" onSubmit={submit}>
-        <span aria-hidden="true">›</span>
+        <span aria-hidden="true" className="chevron">❯</span>
         <textarea
           aria-label="Prompt"
           className="input"
@@ -224,6 +266,28 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
       </p>
     </section>
   );
+}
+
+function paragraphs(text: string, from: number, final = false): { chunks: string[]; next: number } {
+  const chunks: string[] = [];
+  let start = from;
+  let fenced = (text.slice(0, from).match(/^```/gm)?.length ?? 0) % 2 === 1;
+  let index = from;
+  while (index < text.length) {
+    const line = text.indexOf("\n", index);
+    if (line === -1) break;
+    if (text.startsWith("```", index)) fenced = !fenced;
+    if (!fenced && text.startsWith("\n", line + 1)) {
+      const chunk = text.slice(start, line).trim();
+      if (chunk) chunks.push(chunk);
+      start = line + 2;
+    }
+    index = line + 1;
+  }
+  if (!final) return { chunks, next: start };
+  const rest = text.slice(start).trim();
+  if (rest) chunks.push(rest);
+  return { chunks, next: text.length };
 }
 
 function clip(text: string): string {

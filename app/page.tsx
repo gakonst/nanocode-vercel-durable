@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <div className="page">
       <h1>
-        nanocode on Vercel.
+        nanocode on Vercel<span className="dot">.</span>
         <br />
         Durable agents in Functions.
       </h1>
