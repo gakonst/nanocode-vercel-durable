@@ -7,18 +7,13 @@ export type Selection = { provider: ModelProvider; model: string; thinking: Thin
 
 export type Model = { id: string; label: string; efforts: Thinking[]; effort: Thinking };
 
-const every: Thinking[] = ["none", "low", "medium", "high", "xhigh", "max"];
-
-const thinking: Thinking[] = ["low", "medium", "high", "xhigh", "max"];
-
 export const harnesses: { id: ModelProvider; label: string; models: Model[] }[] = [
-  { id: "claude", label: "Claude", models: [{ id: "claude-haiku-5-5", label: "Haiku 5.5", efforts: every, effort: "medium" }, { id: "claude-sonnet-5-5", label: "Sonnet 5.5", efforts: thinking, effort: "high" }, { id: "claude-opus-5-5", label: "Opus 5.5", efforts: thinking, effort: "medium" }] },
-  { id: "codex", label: "Codex", models: [{ id: "gpt-6-luna", label: "Luna", efforts: every, effort: "medium" }, { id: "gpt-6.1-sol", label: "Sol", efforts: thinking, effort: "medium" }, { id: "gpt-6-astra", label: "Astra", efforts: thinking, effort: "low" }] },
+  { id: "codex", label: "Codex", models: [{ id: "glm-5.3", label: "GLM-5.3", efforts: ["low", "medium", "high"], effort: "low" }, { id: "kimi-k3", label: "Kimi K3", efforts: ["low", "high"], effort: "low" }, { id: "mimo-v2.6-pro", label: "MiMo V2.6 Pro", efforts: ["low", "medium", "high"], effort: "low" }] },
 ];
 
-export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "codex" ? "codex" : "claude";
+export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "claude" ? "claude" : "codex";
 
-export const model = process.env.NANOCODE_MODEL ?? (provider === "codex" ? "gpt-6-luna" : "claude-sonnet-5-5");
+export const model = process.env.NANOCODE_MODEL ?? (provider === "codex" ? "glm-5.3" : "claude-sonnet-5-5");
 
 export function find(chosen: string): Model | undefined {
   return harnesses.flatMap(entry => entry.models).find(candidate => candidate.id === chosen);
