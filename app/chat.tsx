@@ -28,6 +28,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
   const [typing, setTyping] = useState(false);
   const cursor = useRef<string | undefined>(undefined);
   const reply = useRef({ posted: 0, text: "" });
+  const asking = useRef(0);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -57,7 +58,8 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
       return;
     }
     flush();
-    if (event.type === "tool_start") add({ kind: "tool", text: `${event.name} ${JSON.stringify(event.args)}` });
+    if (event.type === "idle") setBusy(false);
+    else if (event.type === "tool_start") add({ kind: "tool", text: `${event.name} ${JSON.stringify(event.args)}` });
     else if (event.type === "tool_end") add({ kind: "tool", text: `${event.name} ${event.status}: ${clip(typeof event.result === "string" ? event.result : event.result?.text ?? "")}` });
     else if (event.type === "chaos") add({ kind: "tool", text: event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${event.effect ?? "a step"}.` });
     else if (event.type === "retrying") add({ kind: "tool", text: `Retrying: ${JSON.stringify(event.error ?? event.message ?? "")}` });
@@ -142,6 +144,7 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
 
   const ask = async (text: string) => {
     if (!text || busy) return;
+    const mine = ++asking.current;
     setPrompt("");
     setBusy(true);
     add({ kind: "user", text });
@@ -157,8 +160,10 @@ export function Chat(props: { chaos: boolean; model: string; needsToken: boolean
     } catch (error) {
       add({ kind: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
-      save({ open: false });
-      setBusy(false);
+      if (mine === asking.current) {
+        save({ open: false });
+        setBusy(false);
+      }
     }
   };
 

@@ -10,14 +10,17 @@ export const INSTRUCTIONS = `You are nanocode, a coding agent running in a Verce
 
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [...workspaceTools(workspace), chargeTool(record)];
 
+export const durability = process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on";
+
 export const agent = durableAgent({
   harness: nanocodeHarness({
     provider,
     model,
     instructions: INSTRUCTIONS,
-    durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
+    durability,
     tools: appTools(charge => console.log(JSON.stringify({ charge }))),
     report: drive => console.log(JSON.stringify({ drive })),
   }),
-  durability: "strict",
+  durability,
+  marks: process.env.HARNESS_MARKS === "1",
 });

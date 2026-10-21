@@ -51,7 +51,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
       tools: appTools(charge => appendFileSync(files.ledger, `${JSON.stringify(charge)}\n`)),
       report: report => appendFileSync(files.drives, `${JSON.stringify({ pid: process.pid, phase, ...report })}\n`),
     }),
-    durability: "strict",
+    durability,
     ...(process.env.DRILL_LOG ? { log: (message: string, fields?: Record<string, unknown>) => process.stderr.write(`${new Date().toISOString()} [${phase}] ${message} ${JSON.stringify(fields ?? {})}\n`) } : {}),
   });
   const world = await getWorld();

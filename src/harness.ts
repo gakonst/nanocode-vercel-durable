@@ -14,7 +14,9 @@ export const DEFAULT_EVENT_COALESCE_MS = 50;
 
 export type NanocodeSession = { session_id: string; provider: ModelProvider; model?: string; thinking?: AgentConfiguration["thinking"] };
 
-export type DriveReport = { run_id: string; attempt: number; durability: Durability; opened: boolean; duration_ms: number; journal: JournalStats; model_requests: number; tool_calls: number; outcome: "idle" | "settled" | "stopped" | "failed"; error?: string };
+export type ModelCall = { index: number; replayed: boolean; first_output_ms: number | null; duration_ms: number; input_tokens: number; cached_tokens: number; output_tokens: number };
+
+export type DriveReport = { run_id: string; attempt: number; durability: Durability; opened: boolean; duration_ms: number; replay_ms: number; open_ms: number; journal: JournalStats; model_requests: number; tool_calls: number; models: ModelCall[]; outcome: "idle" | "settled" | "stopped" | "failed"; error?: string };
 
 export interface NanocodeHarnessOptions {
   name?: string;
@@ -48,8 +50,17 @@ export function nanocodeHarness(options: NanocodeHarnessOptions = {}): Harness {
   const module = options.module ?? nanocodeModule;
   const durability = options.durability ?? "on";
 
-  async function run(ctx: DriveContext, journal: SqlJournal, session: NanocodeSession, counts: { model_requests: number; tool_calls: number }): Promise<void> {
-    const runtime = await AgentRuntime.instantiate(await module(), journal, { published: events => journal.afterDurable(() => publish(ctx, events)) });
+  async function run(ctx: DriveContext, journal: SqlJournal, session: NanocodeSession, counts: { model_requests: number; tool_calls: number; models: ModelCall[]; open_ms: number }): Promise<void> {
+    const opening = performance.now();
+    const runtime = await AgentRuntime.instantiate(await module(), journal, {
+      published: events => {
+        for (const logged of events) {
+          const call = modelCall(logged);
+          if (call) counts.models.push(call);
+        }
+        publish(ctx, events);
+      },
+    });
     const stop = () => void runtime.dispose().catch(() => undefined);
     ctx.signal.addEventListener("abort", stop, { once: true });
     try {
@@ -82,6 +93,7 @@ export function nanocodeHarness(options: NanocodeHarnessOptions = {}): Harness {
         if (error instanceof HostFailure && error.permanent) throw new Fatal(`nanocode refused its configuration: ${error.message}`);
         throw error;
       }
+      counts.open_ms = performance.now() - opening;
       for (;;) {
         await ctx.refresh();
         for (const submission of ctx.pending()) await place(ctx, journal, runtime, submission);
@@ -114,7 +126,8 @@ export function nanocodeHarness(options: NanocodeHarnessOptions = {}): Harness {
     async drive(ctx) {
       const started = performance.now();
       const journal = new SqlJournal(ctx, durability);
-      const counts = { model_requests: 0, tool_calls: 0 };
+      const replay_ms = performance.now() - started;
+      const counts = { model_requests: 0, tool_calls: 0, models: [] as ModelCall[], open_ms: 0 };
       let outcome: DriveReport["outcome"] = "idle";
       let failure: unknown;
       try {
@@ -146,6 +159,7 @@ export function nanocodeHarness(options: NanocodeHarnessOptions = {}): Harness {
           durability,
           opened: outcome !== "idle",
           duration_ms: performance.now() - started,
+          replay_ms,
           journal: journal.stats,
           ...counts,
           outcome,
@@ -185,6 +199,21 @@ function changed(runtime: AgentRuntime, signal: AbortSignal): Promise<void> {
       resolve();
     });
   });
+}
+
+function modelCall(logged: LoggedEvent): ModelCall | undefined {
+  const body = logged.event as { source?: string; event?: { type: string; payload: { call_index: number; duration_ns: number; time_to_first_output_ns: number | null; timing?: { replayed?: boolean }; usage?: { input_tokens?: number; input_tokens_details?: { cached_tokens?: number }; output_tokens?: number } } } };
+  if (body.source !== "agent" || body.event?.type !== "model.call.completed") return undefined;
+  const { call_index, duration_ns, time_to_first_output_ns, timing, usage } = body.event.payload;
+  return {
+    index: call_index,
+    replayed: timing?.replayed ?? false,
+    first_output_ms: time_to_first_output_ns === null ? null : time_to_first_output_ns / 1e6,
+    duration_ms: duration_ns / 1e6,
+    input_tokens: usage?.input_tokens ?? 0,
+    cached_tokens: usage?.input_tokens_details?.cached_tokens ?? 0,
+    output_tokens: usage?.output_tokens ?? 0,
+  };
 }
 
 function publish(ctx: DriveContext, events: LoggedEvent[]): void {

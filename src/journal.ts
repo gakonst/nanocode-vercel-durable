@@ -118,10 +118,6 @@ export class SqlJournal implements SqlHost {
     return this.enqueue(undefined);
   }
 
-  afterDurable(action: () => void): void {
-    this.enqueue(undefined).then(action, () => undefined);
-  }
-
   close(): void {
     this.sql.close();
   }
@@ -140,6 +136,7 @@ export class SqlJournal implements SqlHost {
     this.flushing = true;
     try {
       while (this.queue.length) {
+        await new Promise(resolve => setImmediate(resolve));
         const entries = this.queue.splice(0);
         const transactions = entries.flatMap(entry => entry.transaction ? [entry.transaction] : []);
         try {
