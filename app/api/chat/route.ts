@@ -8,7 +8,7 @@ const chat = agent.chatRoute(authorize ? { authorize } : {});
 
 export const GET = chat.GET;
 
-type Body = { harness?: unknown; model?: unknown; sessionId?: unknown; text?: unknown };
+type Body = { effort?: unknown; harness?: unknown; model?: unknown; sessionId?: unknown; text?: unknown };
 
 export async function POST(request: Request) {
   const body = await request.clone().json().catch(() => undefined) as Body | undefined;
@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     return chat.POST(request);
   }
   if (body.sessionId !== undefined || typeof body.text !== "string" || !body.text) return chat.POST(request);
-  const chosen = body.harness === undefined && body.model === undefined ? defaultSelection : selection(body.harness, body.model);
-  if (!chosen) return new Response(`harness and model must name one of ${harnesses.map(entry => `${entry.id} (${entry.models.map(model => model.id).join(", ")})`).join(" or ")}`, { status: 400 });
+  const chosen = body.harness === undefined && body.model === undefined ? defaultSelection : selection(body.harness, body.model, body.effort);
+  if (!chosen) return new Response(`harness, model and effort must name one of ${harnesses.map(entry => `${entry.id} (${entry.models.map(model => `${model.id}: ${model.efforts.join("|")}`).join(", ")})`).join(" or ")}`, { status: 400 });
   if (typeof authorize === "function") {
     try { await authorize(request); }
     catch (refusal) { if (refusal instanceof Response) return refusal; throw refusal; }

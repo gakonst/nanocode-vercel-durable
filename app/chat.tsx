@@ -2,17 +2,17 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
-import type { Selection } from "@/lib/settings";
+import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Kind = "assistant" | "error" | "reasoning" | "tool" | "user";
 
 type Entry = { kind: Kind; text: string };
 
-type Harness = { id: Selection["provider"]; label: string; models: { id: string; label: string }[] };
+type Harness = { id: Selection["provider"]; label: string; models: Model[] };
 
 type Saved = { cursor?: string; entries: Entry[]; open?: boolean; selection?: Selection; session?: string };
 
-type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean; kind?: Kind; text?: string; turn?: number };
+type Live = { type: string; delta?: string; name?: string; args?: unknown; status?: string; result?: string | { text?: string }; error?: unknown; message?: string; effect?: string; reannounced?: boolean; kind?: Kind; text?: string; turn?: number; thinking?: Thinking };
 
 type Stream = { kind?: "assistant" | "reasoning"; posted: number; shown: number; text: string };
 
@@ -36,6 +36,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   const [live, setLive] = useState<Entry | null>(null);
   const [session, setSession] = useState<string>();
   const [selection, setSelection] = useState<Selection>(defaultSelection);
+  const [choosing, setChoosing] = useState(false);
   const [token, setToken] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -138,6 +139,15 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     else if (event.type === "retrying") add({ kind: "tool", text: `Retrying: ${JSON.stringify(event.error ?? event.message ?? "")}` });
     else if (event.type === "turn" && event.status !== "completed") add({ kind: "error", text: `The turn ${event.status}: ${JSON.stringify(event.error ?? "")}` });
     else if (event.type === "error") add({ kind: "error", text: event.message ?? JSON.stringify(event) });
+    else if (event.type === "effort" && event.thinking) {
+      const thinking = event.thinking;
+      setSelection(current => {
+        const next = { ...current, thinking };
+        save({ selection: next });
+        return next;
+      });
+      add({ kind: "tool", text: `Reasoning effort is ${thinking} from the next turn.` });
+    }
   };
 
   const headers = (): HeadersInit => token ? { authorization: `Bearer ${token}` } : {};
@@ -196,7 +206,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     const saved: Saved = { entries: [], ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
     setEntries(saved.entries);
     setSession(saved.session);
-    if (saved.selection) setSelection(saved.selection);
+    if (saved.selection) setSelection({ ...saved.selection, thinking: saved.selection.thinking ?? find(saved.selection.model)?.effort ?? defaultSelection.thinking });
     cursor.current = saved.cursor;
     setToken(localStorage.getItem(TOKEN) ?? "");
     if (saved.open && saved.session) {
@@ -215,15 +225,65 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
     return () => clearTimeout(timer);
   }, [busy]);
 
+  const command = (text: string): boolean => {
+    const [name, ...words] = text.split(/\s+/);
+    if (name === "/model") {
+      chooseModel(words.join(" ").toLowerCase());
+      return true;
+    }
+    if (name !== "/effort") return false;
+    const model = find(selection.model);
+    const level = words[0]?.toLowerCase();
+    setPrompt("");
+    if (!level) {
+      setChoosing(true);
+      note("tool", `Reasoning effort is ${selection.thinking}. Pick one below, or type /effort followed by ${model?.efforts.join(", ")}.`);
+      return true;
+    }
+    if (!model?.efforts.includes(level as Thinking)) {
+      note("error", `${model?.label ?? selection.model} takes ${model?.efforts.join(", ")}, not ${level}.`);
+      return true;
+    }
+    setChoosing(false);
+    if (session) return false;
+    const next = { ...selection, thinking: level as Thinking };
+    setSelection(next);
+    save({ selection: next });
+    note("tool", `Your next session starts at ${level} effort.`);
+    return true;
+  };
+
+  const chooseModel = (query: string) => {
+    setPrompt("");
+    if (!query) {
+      reset();
+      setChoosing(false);
+      note("tool", "Pick a harness, a model and an effort below. Your next prompt starts a new session.");
+      return;
+    }
+    const words = query.split(" ");
+    const match = harnesses.flatMap(entry => entry.models.map(model => ({ entry, model }))).find(({ entry, model }) => words.every(word => `${entry.id} ${entry.label} ${model.id} ${model.label}`.toLowerCase().includes(word)));
+    if (!match) {
+      note("error", `No model matches "${query}". Choose from ${harnesses.map(entry => `${entry.label} (${entry.models.map(model => model.label).join(", ")})`).join(" and ")}.`);
+      return;
+    }
+    const next = { model: match.model.id, provider: match.entry.id, thinking: match.model.efforts.includes(selection.thinking) ? selection.thinking : match.model.effort };
+    reset();
+    setChoosing(false);
+    setSelection(next);
+    save({ selection: next });
+    note("tool", `Your next prompt starts a new ${match.entry.label} · ${match.model.label} session at ${next.thinking} effort.`);
+  };
+
   const ask = async (text: string) => {
-    if (!text || busy) return;
+    if (!text || busy || command(text)) return;
     const mine = ++asking.current;
     setPrompt("");
     setBusy(true);
     note("user", text);
     save({ open: true, selection });
     try {
-      const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(session ? { sessionId: session, text } : { harness: selection.provider, model: selection.model, text }) });
+      const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(session ? { sessionId: session, text } : { effort: selection.thinking, harness: selection.provider, model: selection.model, text }) });
       const id = response.headers.get("x-session-id") ?? session;
       if (id && id !== session) {
         setSession(id);
@@ -263,7 +323,9 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
   };
 
   const harness = harnesses.find(entry => entry.id === selection.provider) ?? harnesses[0];
-  const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
+  const current = harness.models.find(entry => entry.id === selection.model);
+  const modelLabel = current?.label ?? selection.model;
+  const efforts = current?.efforts ?? [];
   const shown = live ? [...entries, live] : entries;
   return (
     <section
@@ -298,14 +360,32 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
           <span aria-hidden="true" className="chevron">❯</span>
           <span className="picker-label">harness</span>
           {harnesses.map(entry => (
-            <button aria-pressed={entry.id === selection.provider} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.models[0].id, provider: entry.id })} type="button">
+            <button aria-pressed={entry.id === selection.provider} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.models[0].id, provider: entry.id, thinking: entry.models[0].effort })} type="button">
               {entry.label}
             </button>
           ))}
           <span className="picker-label">model</span>
           {harness.models.map(entry => (
-            <button aria-pressed={entry.id === selection.model} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.id, provider: harness.id })} type="button">
+            <button aria-pressed={entry.id === selection.model} className="option" disabled={busy} key={entry.id} onClick={() => setSelection({ model: entry.id, provider: harness.id, thinking: entry.efforts.includes(selection.thinking) ? selection.thinking : entry.effort })} type="button">
               {entry.label}
+            </button>
+          ))}
+          <span className="picker-label">effort</span>
+          {efforts.map(level => (
+            <button aria-pressed={level === selection.thinking} className="option" disabled={busy} key={level} onClick={() => setSelection({ ...selection, thinking: level })} type="button">
+              {level}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {session && choosing && (
+        <div className="row picker">
+          <span aria-hidden="true" className="chevron">❯</span>
+          <span className="picker-label">effort</span>
+          {efforts.map(level => (
+            <button aria-pressed={level === selection.thinking} className="option" disabled={busy} key={level} onClick={() => void ask(`/effort ${level}`)} type="button">
+              {level}
             </button>
           ))}
         </div>
@@ -340,7 +420,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }}
-          placeholder="Ask the agent"
+          placeholder="Ask the agent, or type /model or /effort"
           ref={input}
           rows={1}
           value={prompt}
@@ -364,7 +444,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
       </div>
 
       <p className="status">
-        <span>{`${harness.label} · ${modelLabel} · ${session ?? "new session"} · ${busy ? "running" : "idle"}`}</span>
+        <span>{`${harness.label} · ${modelLabel} · ${selection.thinking} · ${session ?? "new session"} · ${busy ? "running" : "idle"}`}</span>
         <button className="suggestion" disabled={busy} onClick={reset} type="button">New session</button>
       </p>
     </section>

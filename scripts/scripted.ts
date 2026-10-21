@@ -6,6 +6,7 @@ export type ScriptedRequest = {
   pid: number;
   endpoint: string;
   model: string;
+  effort?: string;
   credential_free: boolean;
   items: number;
   tools: string[];
@@ -33,7 +34,8 @@ export function scriptedDispatch(provider: "claude" | "codex", log: string): Dis
     const body = JSON.parse(new TextDecoder().decode(request.body));
     const call = `${process.pid}_${calls++}`;
     const credential_free = !request.headers.some(([name]) => ["authorization", "x-api-key"].includes(name.toLowerCase()));
-    const record = (entry: Omit<ScriptedRequest, "provider" | "pid" | "endpoint" | "model" | "credential_free">) => appendFileSync(log, `${JSON.stringify({ provider, pid: process.pid, endpoint: request.endpoint, model: body.model, credential_free, ...entry })}\n`);
+    const effort = provider === "claude" ? body.output_config?.effort ?? (body.thinking?.type === "disabled" ? "none" : undefined) : body.reasoning?.effort;
+    const record = (entry: Omit<ScriptedRequest, "provider" | "pid" | "endpoint" | "model" | "effort" | "credential_free">) => appendFileSync(log, `${JSON.stringify({ provider, pid: process.pid, endpoint: request.endpoint, model: body.model, effort, credential_free, ...entry })}\n`);
     if (provider === "claude") {
       const messages = body.messages as { role: string; content: unknown }[];
       const last = messages.at(-1)!;
