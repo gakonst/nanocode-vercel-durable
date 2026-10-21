@@ -16,6 +16,7 @@
     "drill": "node --disable-warning=ExperimentalWarning scripts/drill.ts"
   },
   "dependencies": {
+    "@pierre/highlights": "0.2.0",
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
     "just-bash": "3.6.0",

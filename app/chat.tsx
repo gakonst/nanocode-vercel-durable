@@ -3,6 +3,7 @@
 import { type Entry, type EntryKind, type LiveEvent, modelItems, type PickerItem, serverEvents, thinkingItems, Transcript } from "nanocode-ts/client";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
+import { Reply } from "./code";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
@@ -310,7 +311,7 @@ export function Chat(props: { chaos: boolean; defaultSelection: Selection; harne
           return (
             <div className="turn" key={index}>
               {label && <p className={`speaker speaker-${label}`}><span aria-hidden="true">●</span> {label}</p>}
-              <p className={`entry entry-${entry.kind}${entry === live ? " entry-live" : ""}`}>{entry.kind === "reasoning" ? entry.text.replace(/\*\*(.+?)\*\*/g, "$1") : entry.text}</p>
+              <div className={`entry entry-${entry.kind}${entry === live ? " entry-live" : ""}`}>{entry.kind === "assistant" ? <Reply text={entry.text} /> : entry.kind === "reasoning" ? entry.text.replace(/\*\*(.+?)\*\*/g, "$1") : entry.text}</div>
             </div>
           );
         })}

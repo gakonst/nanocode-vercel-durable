@@ -1,3 +1,4 @@
+import { Code as HighlightedCode } from "../code";
 import { href } from "@/lib/base";
 import { pageMetadata } from "@/lib/metadata";
 
@@ -51,11 +52,11 @@ const crash = `{"type": "tool_start", "name": "charge",
 {"type": "tool_end", "name": "charge", "status": "unknown"}
 {"type": "turn", "status": "completed"}`;
 
-function Code(props: { children: string; title?: string }) {
+function Code(props: { children: string; language?: string; title?: string }) {
   return (
     <div className="block">
       {props.title && <div className="block-header"><span className="block-label">{props.title}</span></div>}
-      <pre className="code"><code>{props.children}</code></pre>
+      <HighlightedCode code={props.children} language={props.language ?? "typescript"} />
     </div>
   );
 }
@@ -121,7 +122,7 @@ export default function HowItWorks() {
       <p>
         These are the live events of a turn on this deployment, with the Function killed 1.5 s into the charge. The second <code>chaos</code> event comes from the drive that took the turn over.
       </p>
-      <Code>{crash}</Code>
+      <Code language="json">{crash}</Code>
       <p>
         The kernel records the charge step as interrupted, because its replay rule is <code>never</code>. The next drive replays the batches and nanocode resumes the turn from its checkpoint. The model receives &quot;Tool execution interrupted by a host crash; outcome unknown.&quot; and does not charge again, and the deployment&apos;s logs hold one charge.
       </p>
