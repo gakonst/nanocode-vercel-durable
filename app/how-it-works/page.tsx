@@ -63,7 +63,7 @@ export default function HowItWorks() {
     <article className="docs">
       <h1>How It Works</h1>
       <p>
-        nanocode on Vercel runs a nanocode agent in Vercel Functions on <a href="https://github.com/vercel-labs/durable-harness">durable-harness</a>. Every SQLite write of the agent is a step in the session&apos;s Workflow run, so a turn that loses its Function continues in another one from the log.
+        nanocode on Vercel runs a nanocode agent in Vercel Functions on <a href="https://github.com/vercel-labs/durable-harness">durable-harness</a>. Every SQLite write of the agent is a step in the session&apos;s Workflow run, so a turn that loses its Function continues in another one from the log. Its source is <a href="https://github.com/gakonst/nanocode-vercel-durable">gakonst/nanocode-vercel-durable</a>.
       </p>
 
       <h2>Overview</h2>
