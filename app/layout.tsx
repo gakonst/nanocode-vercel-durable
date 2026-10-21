@@ -1,18 +1,12 @@
 import type { ReactNode } from "react";
 import "./globals.css";
+import { Navigation } from "./navigation";
 
 export const metadata = {
   description: "nanocode agents made durable in Vercel Functions with durable-harness.",
   icons: { icon: "/favicon.svg" },
   title: "nanocode on Vercel",
 };
-
-const sections = [
-  { current: true, href: "/", label: "Home" },
-  { href: "https://nanocode.xyz", label: "nanocode" },
-  { href: "https://github.com/vercel-labs/durable-harness", label: "durable-harness" },
-  { href: "https://github.com/gakonst/nanocode-vercel-durable", label: "GitHub" },
-];
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -22,13 +16,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <header className="header">
-          <nav aria-label="Site" className="navigation">
-            {sections.map((section, index) => (
-              <a aria-current={section.current ? "page" : undefined} href={section.href} key={section.href} {...(section.href.startsWith("http") ? { rel: "noreferrer" } : {})}>
-                {`${String(index + 1).padStart(2, "0")} ${section.label}`}
-              </a>
-            ))}
-          </nav>
+          <Navigation />
         </header>
         <main className="main">{children}</main>
       </body>

@@ -20,7 +20,7 @@ export default function Home() {
       <Chat chaos={process.env.HARNESS_CHAOS === "1"} model={model} needsToken={!!process.env.CHAT_TOKEN} suggestions={suggestions} />
 
       <p>
-        <a href="https://github.com/gakonst/nanocode-vercel-durable/blob/main/AGENTS.md">Read how it works →</a>
+        <a href="/how-it-works">Read how it works →</a>
       </p>
     </div>
   );
