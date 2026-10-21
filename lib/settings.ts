@@ -19,15 +19,15 @@ export const harnesses: { id: ModelProvider; label: string; models: Model[] }[] 
   { id: "codex", label: "Codex", models: [catalog("codex", "gpt-6-luna", "Luna"), catalog("codex", "gpt-6.1-sol", "Sol"), catalog("codex", "glm-5.3", "GLM-5.3"), catalog("codex", "kimi-k3", "Kimi K3")] },
 ];
 
-export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "claude" ? "claude" : "codex";
+export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "codex" ? "codex" : "claude";
 
-export const model = process.env.NANOCODE_MODEL ?? (provider === "codex" ? "kimi-k3" : "claude-sonnet-5-5");
+export const model = process.env.NANOCODE_MODEL ?? (provider === "codex" ? "gpt-6-luna" : "claude-haiku-5-5");
 
 export function find(chosen: string): Model | undefined {
   return harnesses.flatMap(entry => entry.models).find(candidate => candidate.id === chosen);
 }
 
-export const defaultSelection: Selection = { model, provider, thinking: find(model)?.effort ?? "medium", ...limit(find(model)) };
+export const defaultSelection: Selection = { model, provider, thinking: find(model)?.efforts.includes("low") ? "low" : find(model)?.effort ?? "medium", ...limit(find(model)) };
 
 function limit(found: Model | undefined): { max_tokens?: number; service_tier?: ServiceTier } {
   return { ...(found?.maxTokens ? { max_tokens: found.maxTokens } : {}), ...(found?.serviceTier ? { service_tier: found.serviceTier } : {}) };

@@ -2,7 +2,7 @@ import { durableAgent, type HostTool, virtual } from "durable-harness";
 import { workspaceInstructions, workspaceTools } from "durable-harness/tools";
 import { nanocodeHarness } from "nanocode-ts/vercel";
 import { isPublic, MAX_PROMPTS_PER_SESSION } from "./authorize.ts";
-import { model, provider } from "./settings.ts";
+import { defaultSelection } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
 export const workspace = virtual();
@@ -15,8 +15,9 @@ export const durability = process.env.NANOCODE_DURABILITY === "strict" ? "strict
 
 export const agent = durableAgent({
   harness: nanocodeHarness({
-    provider,
-    model,
+    provider: defaultSelection.provider,
+    model: defaultSelection.model,
+    thinking: defaultSelection.thinking,
     instructions: INSTRUCTIONS,
     durability,
     tools: appTools(charge => console.log(JSON.stringify({ charge }))),
