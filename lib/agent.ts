@@ -1,8 +1,7 @@
-import { durableAgent, type HostTool, virtual } from "durable-harness";
+import { type HostTool, virtual } from "durable-harness";
 import { workspaceInstructions, workspaceTools } from "durable-harness/tools";
-import { nanocodeHarness } from "nanocode-ts/vercel";
-import { isPublic, MAX_PROMPTS_PER_SESSION } from "./authorize.ts";
-import { defaultSelection } from "./settings.ts";
+import { createNanocode } from "nanocode-ts/vercel";
+import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
 export const workspace = virtual();
@@ -11,27 +10,22 @@ export const INSTRUCTIONS = `You are nanocode, a coding agent running in a Verce
 
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [...workspaceTools(workspace), chargeTool(record)];
 
-const offline: typeof fetch = async () => {
-  throw new Error("this deployment gives Code Mode scripts no network access");
-};
+const token = process.env.CHAT_TOKEN;
 
-export const durability = process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on";
+const isPublic = !token && process.env.CHAT_PUBLIC === "1";
 
-export const agent = durableAgent({
-  harness: nanocodeHarness({
-    provider: defaultSelection.provider,
-    model: defaultSelection.model,
-    thinking: defaultSelection.thinking,
-    instructions: INSTRUCTIONS,
-    durability,
-    tools: appTools(charge => console.log(JSON.stringify({ charge }))),
-    report: drive => console.log(JSON.stringify({ drive })),
-    subagents: false,
-    streamToolInput: true,
-    codeMode: true,
-    fetch: offline,
-    ...(isPublic ? { maxPrompts: MAX_PROMPTS_PER_SESSION } : {}),
-  }),
-  durability,
+export const nanocode = createNanocode({
+  harnesses,
+  defaultSelection,
+  instructions: INSTRUCTIONS,
+  tools: appTools(charge => console.log(JSON.stringify({ charge }))),
+  report: drive => console.log(JSON.stringify({ drive })),
+  fetch: async () => { throw new Error("this deployment gives Code Mode scripts no network access"); },
+  durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
   marks: process.env.HARNESS_MARKS === "1",
+  chaos: process.env.HARNESS_CHAOS === "1",
+  authorize: token ? request => { if (request.headers.get("authorization") !== `Bearer ${token}`) throw new Response("unauthorized", { status: 401 }); } : isPublic ? "public" : undefined,
+  ...(isPublic ? { maxPrompts: 20, maxPromptCharacters: 2000 } : {}),
 });
+
+export const agent = nanocode.agent;
