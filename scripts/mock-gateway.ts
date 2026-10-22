@@ -21,7 +21,7 @@ createServer(async (request, response) => {
     response.writeHead(404).end();
     return;
   }
-  const answer = await dispatch({ endpoint: `http://127.0.0.1:${port}${request.url}`, headers, body: Buffer.concat(chunks) }, new AbortController().signal);
+  const answer = await dispatch({ endpoint: `http://127.0.0.1:${port}${request.url}`, method: request.method ?? "POST", headers, body: Buffer.concat(chunks) }, new AbortController().signal);
   response.writeHead(answer.status, Object.fromEntries(answer.headers));
   Readable.fromWeb(answer.body! as import("node:stream/web").ReadableStream).pipe(response);
 }).listen(port, "127.0.0.1", () => process.stderr.write(`mock gateway on http://127.0.0.1:${port}\n`));
