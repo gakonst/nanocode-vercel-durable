@@ -1,4 +1,4 @@
-import { Code as HighlightedCode } from "../code";
+import { Block, Card, Cards, Diagram, Docs } from "nanocode-ts/react/site";
 import { href } from "@/lib/base";
 import { pageMetadata } from "@/lib/metadata";
 
@@ -53,17 +53,12 @@ const crash = `{"type": "tool_start", "name": "charge",
 {"type": "turn", "status": "completed"}`;
 
 function Code(props: { children: string; language?: string; title?: string }) {
-  return (
-    <div className="block">
-      {props.title && <div className="block-header"><span className="block-label">{props.title}</span></div>}
-      <HighlightedCode code={props.children} language={props.language ?? "typescript"} />
-    </div>
-  );
+  return <Block code={props.children} label={props.title ?? ""} language={props.language ?? "typescript"} />;
 }
 
 export default function HowItWorks() {
   return (
-    <article className="docs">
+    <Docs>
       <h1>How It Works</h1>
       <p>
         nanocode on Vercel runs a nanocode agent in Vercel Functions on <a href="https://github.com/vercel-labs/durable-harness">durable-harness</a>. Every SQLite write of the agent is a step in the session&apos;s Workflow run, so a turn that loses its Function continues in another one from the log. Its source is <a href="https://github.com/gakonst/nanocode-vercel-durable">gakonst/nanocode-vercel-durable</a>.
@@ -76,7 +71,7 @@ export default function HowItWorks() {
       <p>
         When a Function dies, a queue message delivers the session to the flow route. That drive reads the log, rebuilds the agent&apos;s database from it, and finishes the turn.
       </p>
-      <div className="block diagram" role="img" aria-label="How a turn moves between the chat route, the log and the flow route"><pre>{diagram}</pre></div>
+      <Diagram>{diagram}</Diagram>
       <p>
         To try it, open the <a href={href("/")}>home page</a>, press &quot;Kill the next tool call&quot;, then ask for a charge. The Function dies during the charge, a new one takes the turn over, and the agent reports that the charge may have gone through.
       </p>
@@ -154,14 +149,14 @@ export default function HowItWorks() {
       </ul>
 
       <h2>More</h2>
-      <div className="cards">
-        <a className="card" href="https://github.com/gakonst/nanocode-vercel-durable"><span className="card-title">Source →</span><span>The app, its tools and the crash drill.</span></a>
-        <a className="card" href="https://github.com/gakonst/nanocode-ts"><span className="card-title">nanocode-ts →</span><span>The harness and the journal, as nanocode-ts/vercel.</span></a>
-        <a className="card" href="https://vercel.com/blog/making-every-harness-durable"><span className="card-title">durable-harness →</span><span>How Vercel makes Pi, OpenCode, Claude Code and Codex durable.</span></a>
-        <a className="card" href="https://nanocode.xyz/cloudflare/"><span className="card-title">nanocode on Cloudflare →</span><span>The same agent in Durable Objects.</span></a>
-        <a className="card" href="https://nanocode.xyz/docs/introduction/getting-started"><span className="card-title">nanocode docs →</span><span>The SDK, its runtime and nanocode-ts.</span></a>
-        <a className="card" href="https://workflow-sdk.dev/worlds"><span className="card-title">Worlds →</span><span>The log, queue and stream behind every session.</span></a>
-      </div>
-    </article>
+      <Cards>
+        <Card href="https://github.com/gakonst/nanocode-vercel-durable" title="Source →">The app, its tools and the crash drill.</Card>
+        <Card href="https://github.com/gakonst/nanocode-ts" title="nanocode-ts →">The harness and the journal, as nanocode-ts/vercel.</Card>
+        <Card href="https://vercel.com/blog/making-every-harness-durable" title="durable-harness →">How Vercel makes Pi, OpenCode, Claude Code and Codex durable.</Card>
+        <Card href="https://nanocode.xyz/cloudflare/" title="nanocode on Cloudflare →">The same agent in Durable Objects.</Card>
+        <Card href="https://nanocode.xyz/docs/introduction/getting-started" title="nanocode docs →">The SDK, its runtime and nanocode-ts.</Card>
+        <Card href="https://workflow-sdk.dev/worlds" title="Worlds →">The log, queue and stream behind every session.</Card>
+      </Cards>
+    </Docs>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
 import { createConfig, type Entry, type LiveEvent, modelItems, serverEvents, thinkingItems } from "nanocode-ts/client";
-import { Chat as View, NanocodeProvider, type Picker, useConfig, useSend } from "nanocode-ts/react";
-import "nanocode-ts/react/styles.css";
+import { Chat as View, NanocodeProvider, type Picker, styles, useConfig, useSend } from "nanocode-ts/react";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
@@ -255,15 +254,14 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
 
   return (
     <View
-      actions={<button className="suggestion" disabled={busy} onClick={reset} type="button">New session</button>}
+      actions={<button disabled={busy} onClick={reset} type="button" {...styles.suggestion({ quiet: true })}>New session</button>}
       commands={COMMANDS}
       empty="Ask a question to start a turn, or type /model to choose a model."
       extras={needsToken && (
-        <label className="row">
-          <span aria-hidden="true" className="chevron">#</span>
+        <label {...styles.row()}>
+          <span aria-hidden="true" {...styles.chevron()}>#</span>
           <input
             aria-label="Access token"
-            className="input"
             onChange={event => {
               setToken(event.target.value);
               session.token = event.target.value;
@@ -272,6 +270,7 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
             placeholder="Access token (CHAT_TOKEN)"
             type="password"
             value={token}
+            {...styles.input()}
           />
         </label>
       )}
