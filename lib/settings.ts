@@ -32,12 +32,3 @@ export const defaultSelection: Selection = { model, provider, thinking: find(mod
 function limit(found: Model | undefined): { max_tokens?: number; service_tier?: ServiceTier } {
   return { ...(found?.maxTokens ? { max_tokens: found.maxTokens } : {}), ...(found?.serviceTier ? { service_tier: found.serviceTier } : {}) };
 }
-
-export function selection(harness: unknown, chosen: unknown, effort: unknown): Selection | undefined {
-  const entry = harnesses.find(candidate => candidate.id === harness);
-  const found = entry?.models.find(candidate => candidate.id === chosen);
-  if (!entry || !found) return undefined;
-  if (effort === undefined) return { model: found.id, provider: entry.id, thinking: found.effort, ...limit(found) };
-  if (!found.efforts.includes(effort as Thinking)) return undefined;
-  return { model: found.id, provider: entry.id, thinking: effort as Thinking, ...limit(found) };
-}

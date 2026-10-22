@@ -1,7 +1,8 @@
 "use client";
 
-import { createConfig, type Entry, type LiveEvent, modelItems, serverEvents, thinkingItems } from "nanocode-ts/client";
+import { createConfig, type Entry, modelItems, thinkingItems } from "nanocode-ts/client";
 import { Chat as View, NanocodeProvider, type Picker, styles, useConfig, useSend } from "nanocode-ts/react";
+import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
@@ -22,8 +23,6 @@ const KEY = "nanocode-vercel-durable";
 
 const TOKEN = `${KEY}:token`;
 
-const RECONNECT_MS = 1000;
-
 const highlight = () => import("nanocode-ts/highlight").then(module => module.highlight);
 
 function read(): Saved {
@@ -34,44 +33,32 @@ function save(next: Partial<Saved>) {
   localStorage.setItem(KEY, JSON.stringify({ ...read(), ...next }));
 }
 
-type Session = { selection: Selection; session?: string; cursor?: string; token: string; warmed?: { key: string; session: Promise<string | undefined> } };
+type Session = { selection: Selection; token: string };
+
+type Setup = { session: Session; transport: VercelTransport; subscribe(listener: () => void): () => void; changed(): void };
 
 export function Chat(props: Props) {
   const [setup] = useState(() => {
     const session: Session = { selection: props.defaultSelection, token: "" };
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
-    const headers = (): HeadersInit => session.token ? { authorization: `Bearer ${session.token}` } : {};
-
-    const follow = async (response: Response, note: (kind: "tool" | "error", text: string) => void, push: (event: LiveEvent) => void): Promise<boolean> => {
-      if (!response.ok || !response.body) {
-        note("error", `${response.status} ${await response.text()}`);
-        return true;
-      }
-      try {
-        for await (const message of serverEvents(response.body)) {
-          if (message.id) {
-            session.cursor = message.id;
-            save({ cursor: session.cursor });
-          }
-          if (message.event === "end") return true;
-          if (message.data) push(JSON.parse(message.data) as LiveEvent);
-        }
-      } catch {
-        note("tool", "The stream dropped. Reconnecting from the last event.");
-        return false;
-      }
-      return false;
-    };
-
-    const reconnect = async (id: string, note: (kind: "tool" | "error", text: string) => void, push: (event: LiveEvent) => void) => {
-      while (session.cursor) {
-        const settled = await fetch(`${href("/api/chat")}?sessionId=${encodeURIComponent(id)}&cursor=${encodeURIComponent(session.cursor)}`, { headers: headers() }).then(response => follow(response, note, push), () => false);
-        if (settled) return;
-        await new Promise(resolve => setTimeout(resolve, RECONNECT_MS));
-      }
-    };
-
+    const transport = vercel({
+      url: href("/api/chat"),
+      chaosUrl: href("/api/chaos"),
+      headers: (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {},
+      selection: () => ({ harness: session.selection.provider, model: session.selection.model, effort: session.selection.thinking }),
+      session: {
+        load: () => {
+          if (typeof localStorage === "undefined") return {};
+          const saved = read();
+          return { id: saved.session, cursor: saved.cursor, open: saved.open };
+        },
+        save: state => {
+          save({ session: state.id, cursor: state.cursor, open: state.open, selection: session.selection });
+          changed();
+        },
+      },
+    });
     const config = createConfig({
       persist: { load: () => typeof localStorage === "undefined" ? [] : read().entries, save: entries => save({ entries: [...entries] }) },
       apply: event => {
@@ -83,46 +70,9 @@ export function Chat(props: Props) {
           config.note("tool", `Reasoning effort is ${session.selection.thinking} from the next turn.`);
         }
       },
-      transport: {
-        async send({ prompt, note, push }) {
-          save({ open: true, selection: session.selection });
-          const key = chosen(session.selection);
-          const started = !session.session && session.warmed?.key === key ? await session.warmed.session : undefined;
-          session.warmed = undefined;
-          const existing = session.session ?? started;
-          const { selection } = session;
-          const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(existing ? { sessionId: existing, text: prompt } : { effort: selection.thinking, harness: selection.provider, model: selection.model, text: prompt }) });
-          const id = response.headers.get("x-session-id") ?? existing;
-          if (id && id !== session.session) {
-            session.session = id;
-            save({ session: id });
-            changed();
-          }
-          if (!(await follow(response, note, push)) && id) await reconnect(id, note, push);
-          save({ open: false });
-        },
-        async steer({ prompt }) {
-          if (!session.session) return false;
-          const kind = /^\/effort\s/.test(prompt) ? "prompt" : "steer";
-          const response = await fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ kind, sessionId: session.session, text: prompt }) });
-          if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-          void response.body?.cancel();
-          return false;
-        },
-        async resume({ note, push }) {
-          if (session.session) await reconnect(session.session, note, push);
-          save({ open: false });
-        },
-      },
+      transport,
     });
-
-    return {
-      config,
-      session,
-      headers,
-      subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-      changed,
-    };
+    return { config, session, transport, changed, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
   });
 
   return (
@@ -132,13 +82,9 @@ export function Chat(props: Props) {
   );
 }
 
-function chosen(selection: Selection) {
-  return `${selection.provider}/${selection.model}/${selection.thinking}`;
-}
-
-function Agent(props: Props & { setup: { session: Session; headers(): HeadersInit; subscribe(listener: () => void): () => void; changed(): void } }) {
+function Agent(props: Props & { setup: Setup }) {
   const { chaos, harnesses, needsToken, setup, suggestions } = props;
-  const { session } = setup;
+  const { session, transport } = setup;
   const config = useConfig();
   const { send, isPending: busy } = useSend();
   const [picker, setPicker] = useState<Picker | null>(null);
@@ -154,8 +100,6 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
     const saved = read();
     const known = saved.selection && find(saved.selection.model);
     if (saved.selection && known) session.selection = { ...saved.selection, thinking: known.efforts.includes(saved.selection.thinking) ? saved.selection.thinking : known.effort };
-    session.session = saved.session;
-    session.cursor = saved.cursor;
     session.token = localStorage.getItem(TOKEN) ?? "";
     setToken(session.token);
     setup.changed();
@@ -174,7 +118,7 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
   });
 
   const pick = (model: string) => {
-    if (session.session && model !== session.selection.model) {
+    if (transport.session().id && model !== session.selection.model) {
       setPicker(null);
       return config.note("tool", "the model is fixed for this session; use /new before choosing another model");
     }
@@ -182,7 +126,7 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
   };
 
   const think = (model: string, level: Thinking) => {
-    if (session.session) {
+    if (transport.session().id) {
       if (level !== session.selection.thinking) void send(`/effort ${level}`);
       return;
     }
@@ -195,9 +139,7 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
 
   const reset = () => {
     localStorage.removeItem(KEY);
-    session.cursor = undefined;
-    session.session = undefined;
-    session.warmed = undefined;
+    transport.forget();
     config.clear();
     setup.changed();
   };
@@ -230,21 +172,18 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
       config.note("error", `${session.selection.model} takes ${model?.efforts.join("/")} thinking, not ${argument}`);
       return true;
     }
-    if (session.session) return false;
+    if (transport.session().id) return false;
     think(session.selection.model, argument as Thinking);
     return true;
   };
 
   const warm = (value: string) => {
-    if (session.session || busy || !value || value.startsWith("/") || session.warmed?.key === chosen(session.selection)) return;
-    const body = JSON.stringify({ effort: selection.thinking, harness: selection.provider, model: selection.model, warm: true });
-    const started = fetch(href("/api/chat"), { method: "POST", headers: { "content-type": "application/json", ...setup.headers() }, body }).then(async response => response.ok ? (await response.json() as { sessionId?: string }).sessionId : undefined, () => undefined);
-    session.warmed = { key: chosen(selection), session: started };
+    if (!busy && value && !value.startsWith("/")) transport.warm();
   };
 
   const crash = async () => {
-    if (!session.session) return config.note("error", "Start a session before arming a crash.");
-    const response = await fetch(href("/api/chaos"), { method: "POST", headers: { "content-type": "application/json", ...setup.headers() }, body: JSON.stringify({ sessionId: session.session, at: "tool", afterMs: 1500 }) });
+    if (!transport.session().id) return config.note("error", "Start a session before arming a crash.");
+    const response = await transport.crash();
     if (response.ok) config.note("tool", "Armed: the next tool call kills its Function 1.5 s in.");
     else config.note("error", `${response.status} ${await response.text()}`);
   };
@@ -279,8 +218,8 @@ function Agent(props: Props & { setup: { session: Session; headers(): HeadersIni
       onPickerClose={() => setPicker(null)}
       onSubmit={text => { if (!command(text)) void send(text); }}
       picker={picker}
-      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${session.session ?? "new session"} · ${busy ? "running" : "idle"}`}
-      suggestions={[...suggestions, ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !session.session }] : [])]}
+      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${transport.session().id ?? "new session"} · ${busy ? "running" : "idle"}`}
+      suggestions={[...suggestions, ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
     />
   );
 }
