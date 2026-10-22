@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withDurableHarness } from "durable-harness/next";
+import { zyzz } from "zyzz/next";
 import { basePath } from "./lib/base.ts";
 
 const config: NextConfig = {
@@ -8,4 +9,4 @@ const config: NextConfig = {
   rewrites: async () => [{ destination: "/", source: basePath }, { destination: "/:path*", source: `${basePath}/:path*` }],
 };
 
-export default withDurableHarness(config, { agents: ["lib/agent.ts"] });
+export default zyzz(withDurableHarness(config, { agents: ["lib/agent.ts"] }));
