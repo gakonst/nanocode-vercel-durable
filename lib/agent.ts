@@ -23,6 +23,7 @@ export const agent = durableAgent({
     tools: appTools(charge => console.log(JSON.stringify({ charge }))),
     report: drive => console.log(JSON.stringify({ drive })),
     subagents: false,
+    streamToolInput: true,
     ...(isPublic ? { maxPrompts: MAX_PROMPTS_PER_SESSION } : {}),
   }),
   durability,
