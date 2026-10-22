@@ -1,6 +1,6 @@
 "use client";
 
-import type { Token } from "nanocode-ts/ui";
+import type { Token } from "nanocode-ts/react";
 import { useEffect, useState } from "react";
 
 export function Code(props: { code: string; language: string }) {
