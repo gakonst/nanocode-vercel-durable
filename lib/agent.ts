@@ -11,6 +11,10 @@ export const INSTRUCTIONS = `You are nanocode, a coding agent running in a Verce
 
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [...workspaceTools(workspace), chargeTool(record)];
 
+const offline: typeof fetch = async () => {
+  throw new Error("this deployment gives Code Mode scripts no network access");
+};
+
 export const durability = process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on";
 
 export const agent = durableAgent({
@@ -24,6 +28,8 @@ export const agent = durableAgent({
     report: drive => console.log(JSON.stringify({ drive })),
     subagents: false,
     streamToolInput: true,
+    codeMode: true,
+    fetch: offline,
     ...(isPublic ? { maxPrompts: MAX_PROMPTS_PER_SESSION } : {}),
   }),
   durability,
