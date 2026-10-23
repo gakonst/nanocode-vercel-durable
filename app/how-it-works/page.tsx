@@ -31,19 +31,16 @@ await ctx.effect(\`sql:\${n}\`, {
   input: { transactions },
 }, async () => ({ writer }))`;
 
-const agent = `import { durableAgent, virtual } from 'durable-harness'
-import { workspaceTools } from 'durable-harness/tools'
-import { nanocodeHarness } from 'nanocode-ts/vercel'
+const agent = `import { createNanocode } from 'nanocode-ts/vercel'
+import { chargeTool } from './tools'
 
-// A nanocode agent with durable-harness's virtual workspace
-export const agent = durableAgent({
-  harness: nanocodeHarness({
-    provider: 'codex',
-    model: 'glm-5.3',
-    tools: workspaceTools(virtual()),
-  }),
-  durability: 'on',
-})`;
+// A nanocode agent with Code Mode, subagents and a bash whose files
+// live in the session's journaled SQLite, under /workspace
+export const nanocode = createNanocode({
+  harnesses: [{ id: 'codex', label: 'Codex', models: [glm] }],
+  tools: [chargeTool(record)],
+})
+`;
 
 const crash = `{"type": "tool_start", "name": "charge",
  "args": {"amount": 42, "memo": "order 1001"}}
