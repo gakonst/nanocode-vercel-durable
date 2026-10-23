@@ -1,7 +1,8 @@
 "use client";
 
 import { createConfig, modelItems, thinkingItems } from "nanocode-ts/client";
-import { Chat as View, NanocodeProvider, type Picker, styles, useConfig, useConversations, useSend } from "nanocode-ts/react";
+import { Chat as View, NanocodeProvider, type Picker, useConfig, useConversations, useSend } from "nanocode-ts/react";
+import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
@@ -66,7 +67,7 @@ export function Chat(props: Props) {
   });
 
   return (
-    <NanocodeProvider config={setup.config} highlight={highlight}>
+    <NanocodeProvider config={setup.config} highlight={highlight} skin={skin}>
       <Agent {...props} setup={setup} />
     </NanocodeProvider>
   );
