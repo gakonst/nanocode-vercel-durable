@@ -1,7 +1,7 @@
 "use client";
 
-import { createConfig, type Entry, modelItems, thinkingItems } from "nanocode-ts/client";
-import { Chat as View, NanocodeProvider, type Picker, styles, useConfig, useSend } from "nanocode-ts/react";
+import { createConfig, modelItems, thinkingItems } from "nanocode-ts/client";
+import { Chat as View, NanocodeProvider, type Picker, styles, useConfig, useConversations, useSend } from "nanocode-ts/react";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
@@ -9,7 +9,7 @@ import { find, type Model, type Selection, type Thinking } from "@/lib/settings"
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
 
-type Saved = { cursor?: string; entries: Entry[]; open?: boolean; selection?: Selection; session?: string };
+type Saved = { selection?: Selection };
 
 type Props = { chaos: boolean; defaultSelection: Selection; harnesses: Harness[]; needsToken: boolean; suggestions: string[] };
 
@@ -26,7 +26,7 @@ const TOKEN = `${KEY}:token`;
 const highlight = () => import("nanocode-ts/highlight").then(module => module.highlight);
 
 function read(): Saved {
-  return { entries: [], ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
+  return JSON.parse(localStorage.getItem(KEY) ?? "{}");
 }
 
 function save(next: Partial<Saved>) {
@@ -47,20 +47,10 @@ export function Chat(props: Props) {
       chaosUrl: href("/api/chaos"),
       headers: (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {},
       selection: () => ({ harness: session.selection.provider, model: session.selection.model, effort: session.selection.thinking }),
-      session: {
-        load: () => {
-          if (typeof localStorage === "undefined") return {};
-          const saved = read();
-          return { id: saved.session, cursor: saved.cursor, open: saved.open };
-        },
-        save: state => {
-          save({ session: state.id, cursor: state.cursor, open: state.open, selection: session.selection });
-          changed();
-        },
-      },
+      session: { load: () => ({}), save: () => changed() },
     });
     const config = createConfig({
-      persist: { load: () => typeof localStorage === "undefined" ? [] : read().entries, save: entries => save({ entries: [...entries] }) },
+      history: { key: KEY },
       apply: event => {
         if (event.type === "chaos") config.note("tool", event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${typeof event.effect === "string" ? event.effect : "a step"}.`);
         else if (event.type === "effort" && typeof event.thinking === "string") {
@@ -87,6 +77,7 @@ function Agent(props: Props & { setup: Setup }) {
   const { session, transport } = setup;
   const config = useConfig();
   const { send, isPending: busy } = useSend();
+  const { current: conversation } = useConversations();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [token, setToken] = useState("");
   const [, setVersion] = useState(0);
@@ -103,8 +94,11 @@ function Agent(props: Props & { setup: Setup }) {
     session.token = localStorage.getItem(TOKEN) ?? "";
     setToken(session.token);
     setup.changed();
-    if (saved.open && saved.session) void config.resume();
   }, []);
+
+  useEffect(() => {
+    void config.resume();
+  }, [conversation]);
 
   const { selection } = session;
 
@@ -138,8 +132,6 @@ function Agent(props: Props & { setup: Setup }) {
   };
 
   const reset = () => {
-    localStorage.removeItem(KEY);
-    transport.forget();
     config.clear();
     setup.changed();
   };
