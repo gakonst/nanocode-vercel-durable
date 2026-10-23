@@ -16,11 +16,13 @@ export type ScriptedRequest = {
 };
 
 const CHARGE = { name: "charge", input: { amount: 42, memo: "order 1001" } };
-const WORKSPACE = { name: "bash", input: { command: "echo durable > /workspace/note.txt && cat /workspace/note.txt" } };
+const NOTE = "echo durable > /workspace/note.txt && cat /workspace/note.txt";
 
-function plan(prompt: string | undefined) {
+const WORKSPACE = { claude: { name: "Bash", input: { command: NOTE } }, codex: { name: "exec_command", input: { cmd: NOTE } } };
+
+function plan(prompt: string | undefined, provider: "claude" | "codex") {
   if (prompt?.includes("charge")) return CHARGE;
-  if (prompt?.includes("workspace")) return WORKSPACE;
+  if (prompt?.includes("workspace")) return WORKSPACE[provider];
   return undefined;
 }
 
@@ -41,7 +43,7 @@ export function scriptedDispatch(provider: "claude" | "codex", log: string): Dis
       const last = messages.at(-1)!;
       const result = Array.isArray(last.content) ? (last.content as { type: string; content?: unknown }[]).find(block => block.type === "tool_result") : undefined;
       const prompt = [...messages].reverse().map(message => message.role === "user" && Array.isArray(message.content) && (message.content as { type: string }[]).some(block => block.type === "tool_result") ? undefined : message.role === "user" ? text(message.content) : undefined).find(value => value !== undefined);
-      const tool = result ? undefined : plan(prompt);
+      const tool = result ? undefined : plan(prompt, provider);
       const answer = result ? `The tool answered: ${text(result.content)}` : tool ? `tool_use ${tool.name}` : "ok";
       record({ items: messages.length, tools: (body.tools ?? []).map((tool: { name: string }) => tool.name), ...(prompt !== undefined ? { prompt } : {}), ...(result ? { tool_result: text(result.content) } : {}), answer });
       const block = tool
@@ -60,7 +62,7 @@ export function scriptedDispatch(provider: "claude" | "codex", log: string): Dis
     const user = items.findLastIndex(item => item.type === "message" && item.role === "user");
     const result = items.find((item, index) => index > user && item.type === "function_call_output");
     const prompt = user >= 0 ? text(items[user].content) : undefined;
-    const tool = result ? undefined : plan(prompt);
+    const tool = result ? undefined : plan(prompt, provider);
     const answer = result ? `The tool answered: ${text(result.output)}` : tool ? `function_call ${tool.name}` : "ok";
     const offered = (body.tools ?? items.flatMap(item => item.type === "additional_tools" ? (item as unknown as { tools: { name?: string }[] }).tools : [])).map((tool: { name?: string }) => tool.name ?? "");
     record({ items: items.length, tools: offered, ...(prompt !== undefined ? { prompt } : {}), ...(result ? { tool_result: text(result.output) } : {}), answer });

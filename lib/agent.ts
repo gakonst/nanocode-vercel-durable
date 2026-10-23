@@ -1,14 +1,11 @@
-import { type HostTool, virtual } from "durable-harness";
-import { workspaceInstructions, workspaceTools } from "durable-harness/tools";
+import type { HostTool } from "durable-harness";
 import { createNanocode } from "nanocode-ts/vercel";
 import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
-export const workspace = virtual();
+export const INSTRUCTIONS = `You are nanocode, a coding agent running in a Vercel Function, with a bash and files in /workspace that persist for this session. If a charge comes back interrupted or with an unknown outcome, do not charge again: tell the user it may have gone through. Keep answers short.`;
 
-export const INSTRUCTIONS = `You are nanocode, a coding agent running in a Vercel Function. ${workspaceInstructions(workspace)} If a charge comes back interrupted or with an unknown outcome, do not charge again: tell the user it may have gone through. Keep answers short.`;
-
-export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [...workspaceTools(workspace), chargeTool(record)];
+export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [chargeTool(record)];
 
 const token = process.env.CHAT_TOKEN;
 
