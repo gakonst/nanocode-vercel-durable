@@ -5,6 +5,8 @@ import { basePath } from "./lib/base.ts";
 
 const config: NextConfig = {
   assetPrefix: basePath,
+  outputFileTracingIncludes: { "/**": ["./node_modules/pyodide/**"] },
+  serverExternalPackages: ["pyodide"],
   redirects: async () => [{ destination: basePath, permanent: false, source: "/" }],
   rewrites: async () => [{ destination: "/", source: basePath }, { destination: "/:path*", source: `${basePath}/:path*` }],
 };
