@@ -27,6 +27,10 @@ export default function Home() {
       <Chat chaos={process.env.HARNESS_CHAOS === "1"} defaultSelection={defaultSelection} harnesses={harnesses} needsToken={!!process.env.CHAT_TOKEN} suggestions={suggestions} />
 
       <p>
+        Also as a <a href={href("/chatgpt")}>ChatGPT-style</a> and a <a href={href("/claude")}>Claude-style</a> app.
+      </p>
+
+      <p>
         <a href={href("/how-it-works")}>Read how it works →</a>
       </p>
     </Page>
