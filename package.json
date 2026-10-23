@@ -19,7 +19,7 @@
     "@pierre/highlights": "0.2.0",
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
-    "nanocode-ts": "https://github.com/gakonst/nanocode-ts/releases/download/build-1c8287c/nanocode-ts-1c8287c.tgz",
+    "nanocode-ts": "https://github.com/gakonst/nanocode-ts/releases/download/build-e542420/nanocode-ts-e542420.tgz",
     "next": "16.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",
