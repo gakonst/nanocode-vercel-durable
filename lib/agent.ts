@@ -1,4 +1,5 @@
 import type { HostTool } from "durable-harness";
+import { githubArchives } from "nanocode-ts/bash";
 import { createNanocode } from "nanocode-ts/vercel";
 import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
@@ -17,7 +18,7 @@ export const nanocode = createNanocode({
   instructions: INSTRUCTIONS,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
-  fetch: async () => { throw new Error("this deployment gives Code Mode scripts no network access"); },
+  fetch: githubArchives(),
   durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
   marks: process.env.HARNESS_MARKS === "1",
   chaos: process.env.HARNESS_CHAOS === "1",
