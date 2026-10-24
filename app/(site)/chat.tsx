@@ -94,12 +94,15 @@ function Agent(props: Props & { setup: Setup }) {
   const [picker, setPicker] = useState<Picker | null>(null);
   const [token, setToken] = useState("");
   const [, setVersion] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
   const started = useRef(false);
   const unlock = useUnlock(setup.keyring);
 
   useEffect(() => adopt(unlock.connected), [unlock.connected]);
 
   useEffect(() => setup.subscribe(() => setVersion(version => version + 1)), [setup]);
+
+  useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
     if (started.current) return;
@@ -242,7 +245,7 @@ function Agent(props: Props & { setup: Setup }) {
       onPickerClose={() => setPicker(null)}
       onSubmit={text => { if (unlock.handles(text)) void unlock.command(text); else if (!command(text)) void send(text); }}
       picker={picker}
-      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${transport.session().id ?? "new session"} · ${!wallet.tab ? "cells on Vercel" : wallet.hand.state === "attached" ? "cells in this tab" : "cells in this tab from the next session"} · ${busy ? "running" : "idle"}`}
+      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${(hydrated && transport.session().id) || "new session"} · ${!wallet.tab ? "cells on Vercel" : wallet.hand.state === "attached" ? "cells in this tab" : "cells in this tab from the next session"} · ${busy ? "running" : "idle"}`}
       suggestions={[...prompts.map(prompt => ({ label: prompt, onClick: () => void send(prompt), disabled: busy })), ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
     />
   );
