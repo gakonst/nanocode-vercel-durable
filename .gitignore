@@ -10,3 +10,4 @@ app/.well-known/
 
 /.zyzz/
 public/nanocode_wasm.wasm
+.vercel
