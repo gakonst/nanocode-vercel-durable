@@ -106,7 +106,7 @@ function Composer(props: { onSend(): void }) {
 }
 
 function Footer() {
-  return <p className="cl-foot"><Brand className="nc-brand" /> · Claude-style demo · durable agent in Vercel Functions · <HandBadge className="nc-hand" /> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
+  return <p className="cl-foot"><Brand className="nc-brand" /><span className="nc-about"> · Claude-style demo · durable agent in Vercel Functions</span> · <HandBadge className="nc-hand" /><span className="nc-about"> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></span><span className="nc-site"> · <a href="https://nanocode.xyz/" rel="noreferrer" target="_blank">nanocode.xyz →</a></span></p>;
 }
 
 function Prompts(props: { onSend(): void }) {
