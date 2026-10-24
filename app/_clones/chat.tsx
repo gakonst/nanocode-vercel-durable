@@ -42,7 +42,7 @@ export function createClone(key: string, harness: "claude" | "codex") {
   };
 
   const transport = vercel({
-    hand: () => (localStorage.getItem(TOKEN) ? Promise.resolve(undefined) : hand()),
+    hand: session => (localStorage.getItem(TOKEN) ? Promise.resolve(undefined) : hand(session)),
     headers: (): Record<string, string> => {
       const token = localStorage.getItem(TOKEN);
       return token ? { authorization: "Bearer " + token } : {};

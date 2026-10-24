@@ -34,7 +34,7 @@ export const nanocode = createNanocode({
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
   fetch: githubArchives(),
-  hands: { relay: channel => (process.env.HAND_RELAY ?? "wss://nanocode-cloudflare-durable.tempo-dev.workers.dev/relay/") + channel + "/brain" },
+  hands: process.env.HAND_RELAY ? { relay: channel => process.env.HAND_RELAY + channel + "/brain" } : {},
   durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
   marks: process.env.HARNESS_MARKS === "1",
   chaos: process.env.HARNESS_CHAOS === "1",
