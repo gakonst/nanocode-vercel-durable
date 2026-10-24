@@ -49,6 +49,7 @@ function load() {
     return handKeeper({
       fetch: pay,
       mcpServers: Mcp.servers.map(server => ({ name: server.name, url: server.url })),
+      mcp: { core: Mcp.core },
       module: () => module ??= compileModule(new URL(href("/nanocode_wasm.wasm"), location.href).href, process.env.NANOCODE_WASM_HASH ? { key: process.env.NANOCODE_WASM_HASH } : { cache: false }),
       onStatus: hand => set({ hand }),
       transport: "stream",
