@@ -6,7 +6,7 @@ import { vercel } from "nanocode-ts/vercel/transport";
 import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
-import { hand, prewarm, setTab, useWallet } from "./hand";
+import { hand, prewarm, setTab, tabFiles, useWallet } from "./hand";
 
 export type Block = TurnBlock | { kind: "tools"; cells: Cell[]; live: boolean };
 
@@ -41,7 +41,7 @@ export function createClone(key: string, harness: "claude" | "codex") {
     return models.find(model => model.id === id) ?? models[0]!;
   };
 
-  const transport = vercel({
+  const transport = tabFiles(vercel({
     hand: session => (localStorage.getItem(TOKEN) ? Promise.resolve(undefined) : hand(session)),
     headers: (): Record<string, string> => {
       const token = localStorage.getItem(TOKEN);
@@ -61,7 +61,7 @@ export function createClone(key: string, harness: "claude" | "codex") {
       },
     },
     url: href("/api/chat"),
-  });
+  }));
 
   const config = createConfig({ history: { key }, transport });
 
