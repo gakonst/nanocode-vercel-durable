@@ -1,9 +1,11 @@
 "use client";
 
 import type { TurnBlock } from "nanocode-ts/client";
-import { Markdown, NanocodeProvider, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
+import { Markdown, NanocodeProvider, useSend, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
 import { useState } from "react";
 import { type Block, createClone, CopyCode, grouped, highlight, seconds, Token, useComposer, useDismiss, useResume, useSidebar, useStick } from "../../_clones/chat";
+import { prompts } from "../../_clones/hand";
+import { Brand, HandBadge, WalletButton } from "../../_clones/wallet";
 import { ArrowUp, Check, Chevron, Compose, Sidebar, Stop, Trash } from "../../_clones/icons";
 
 const clone = createClone("nanocode-vercel-durable:chatgpt", "codex");
@@ -107,17 +109,22 @@ function Composer(props: { onSend(): void }) {
   const composer = useComposer({ onSend: props.onSend, warm: () => clone.transport.warm() });
 
   return (
-    <form className="gpt-composer" onClick={composer.focus} onSubmit={event => { event.preventDefault(); composer.submit(); }}>
+    <div className="gpt-composer" onClick={composer.focus}>
       <textarea placeholder={composer.busy ? "Steer the response" : "Ask anything"} {...composer.textarea} />
       {composer.canCancel && composer.empty
         ? <button aria-label="Stop" className="gpt-send" onClick={event => { event.stopPropagation(); void composer.cancel(); }} type="button"><Stop /></button>
-        : <button aria-label="Send" className="gpt-send" disabled={composer.empty} type="submit"><ArrowUp /></button>}
-    </form>
+        : <button aria-label="Send" className="gpt-send" disabled={composer.empty} onClick={event => { event.stopPropagation(); composer.submit(); }} type="button"><ArrowUp /></button>}
+    </div>
   );
 }
 
 function Footer() {
-  return <p className="gpt-foot">ChatGPT-style demo of durable nanocode agents in Vercel Functions · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
+  return <p className="gpt-foot"><Brand className="nc-brand" /> · ChatGPT-style demo · durable agent in Vercel Functions, code in this tab · <HandBadge className="nc-hand" /> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
+}
+
+function Prompts(props: { onSend(): void }) {
+  const { send } = useSend();
+  return <div className="nc-prompts">{prompts.map(prompt => <button className="nc-prompt" key={prompt} onClick={() => { props.onSend(); void send(prompt); }} type="button">{prompt}</button>)}</div>;
 }
 
 function App(props: { needsToken: boolean }) {
@@ -155,12 +162,14 @@ function App(props: { needsToken: boolean }) {
         <header className="gpt-top">
           <button aria-label="Open sidebar" className="gpt-icon gpt-open" onClick={sidebar.toggle} type="button"><Sidebar /></button>
           <ModelMenu />
+          <WalletButton className="nc-wallet-button" />
           <button aria-label="New chat" className="gpt-icon gpt-top-new" disabled={!threads.canCreate} onClick={newChat} type="button"><Compose /></button>
         </header>
         {thread.length === 0 ? (
           <div className="gpt-hero">
             <h1>What can I help with?</h1>
             <Composer onSend={log.pin} />
+            <Prompts onSend={log.pin} />
             <Footer />
           </div>
         ) : (

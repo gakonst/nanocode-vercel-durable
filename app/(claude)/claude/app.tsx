@@ -1,9 +1,11 @@
 "use client";
 
 import type { TurnBlock } from "nanocode-ts/client";
-import { Markdown, NanocodeProvider, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
+import { Markdown, NanocodeProvider, useSend, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
 import { useState } from "react";
 import { type Block, createClone, CopyCode, greeting, grouped, highlight, seconds, Token, useComposer, useDismiss, useResume, useSidebar, useStick } from "../../_clones/chat";
+import { prompts } from "../../_clones/hand";
+import { Brand, HandBadge, WalletButton } from "../../_clones/wallet";
 import { ArrowUp, Check, Chevron, Plus, Sidebar, Stop, Trash } from "../../_clones/icons";
 
 const clone = createClone("nanocode-vercel-durable:claude", "claude");
@@ -86,20 +88,25 @@ function Composer(props: { onSend(): void }) {
   const composer = useComposer({ onSend: props.onSend, warm: () => clone.transport.warm() });
 
   return (
-    <form className="cl-composer" onSubmit={event => { event.preventDefault(); composer.submit(); }}>
+    <div className="cl-composer">
       <textarea placeholder={composer.busy ? "Add to the response…" : "How can I help you today?"} {...composer.textarea} />
       <div className="cl-composer-row">
         <ModelMenu />
         {composer.canCancel && composer.empty
           ? <button aria-label="Stop" className="cl-send" onClick={() => void composer.cancel()} type="button"><Stop /></button>
-          : <button aria-label="Send" className="cl-send" disabled={composer.empty} type="submit"><ArrowUp /></button>}
+          : <button aria-label="Send" className="cl-send" disabled={composer.empty} onClick={event => { event.stopPropagation(); composer.submit(); }} type="button"><ArrowUp /></button>}
       </div>
-    </form>
+    </div>
   );
 }
 
 function Footer() {
-  return <p className="cl-foot">Claude-style demo of durable nanocode agents in Vercel Functions · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
+  return <p className="cl-foot"><Brand className="nc-brand" /> · Claude-style demo · durable agent in Vercel Functions, code in this tab · <HandBadge className="nc-hand" /> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
+}
+
+function Prompts(props: { onSend(): void }) {
+  const { send } = useSend();
+  return <div className="nc-prompts">{prompts.map(prompt => <button className="nc-prompt" key={prompt} onClick={() => { props.onSend(); void send(prompt); }} type="button">{prompt}</button>)}</div>;
 }
 
 function App(props: { needsToken: boolean }) {
@@ -137,6 +144,7 @@ function App(props: { needsToken: boolean }) {
       <div className="cl-scrim" onClick={sidebar.toggle} />
       <main className="cl-main">
         <header className="cl-top">
+          <WalletButton className="nc-wallet-button" />
           <button aria-label="Open sidebar" className="cl-icon cl-open" onClick={sidebar.toggle} type="button"><Sidebar /></button>
           <span className="cl-title">{thread.length ? title || "New chat" : ""}</span>
           <button aria-label="New chat" className="cl-icon cl-top-new" disabled={!threads.canCreate} onClick={newChat} type="button"><Plus /></button>
@@ -145,6 +153,7 @@ function App(props: { needsToken: boolean }) {
           <div className="cl-hero">
             <h1><span aria-hidden="true" className="cl-spark">✻</span>{greeting()}</h1>
             <Composer onSend={log.pin} />
+            <Prompts onSend={log.pin} />
             <Footer />
           </div>
         ) : (

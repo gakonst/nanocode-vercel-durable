@@ -9,3 +9,4 @@ next-env.d.ts
 app/.well-known/
 
 /.zyzz/
+public/nanocode_wasm.wasm
