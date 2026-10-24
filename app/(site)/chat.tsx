@@ -48,7 +48,7 @@ export function Chat(props: Props) {
     const changed = () => { for (const listener of listeners) listener(); };
     const headers = (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {};
     const transport = vercel({
-      hand: () => (session.token ? Promise.resolve(undefined) : hand()),
+      hand: id => (session.token ? Promise.resolve(undefined) : hand(id)),
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
       headers,

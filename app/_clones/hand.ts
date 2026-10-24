@@ -6,8 +6,6 @@ import { Mcp, Payment, Payments, Wallet } from "nanocode-ts/machines";
 import { useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 
-export const RELAY = "wss://nanocode-cloudflare-durable.tempo-dev.workers.dev/relay/";
-
 const CHANNEL = "nanocode-vercel-durable:hand";
 
 Wallet.configure({ name: "nanocode on Vercel", relay: "api/device/", websiteUrl: "https://nanocode.xyz/vercel/" });
@@ -48,7 +46,8 @@ const keeper = handKeeper({
   mcpServers: Mcp.servers.map(server => ({ name: server.name, url: server.url })),
   module: () => module ??= WebAssembly.compileStreaming(fetch(href("/nanocode_wasm.wasm"))),
   onStatus: hand => set({ hand }),
-  url: id => RELAY + id + "/hand",
+  transport: "stream",
+  url: id => new URL(href("/api/chat"), location.href).href + "?" + new URLSearchParams({ hand: channel(), sessionId: id }),
   workspace: async () => {
     shell ??= Bash.create({ cwd: "/workspace", fetch: pay, github: { archive: (owner, repo, ref) => new URL(href("/api/github/" + owner + "/" + repo + "/" + ref), location.href).href } });
     const ready = await shell;
@@ -56,9 +55,10 @@ const keeper = handKeeper({
   },
 });
 
-export async function hand(): Promise<string | undefined> {
+export async function hand(session?: string): Promise<string | undefined> {
   const id = channel();
-  return (await keeper.attach(id)) ? id : undefined;
+  if (!session) return id;
+  return (await keeper.attach(session)) ? id : undefined;
 }
 
 function use(connected: Wallet.Wallet | undefined) {
