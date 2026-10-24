@@ -6,7 +6,7 @@ import { vercel } from "nanocode-ts/vercel/transport";
 import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
-import { hand, prewarm } from "./hand";
+import { hand, prewarm, setTab, useWallet } from "./hand";
 
 export type Block = TurnBlock | { kind: "tools"; cells: Cell[]; live: boolean };
 
@@ -146,6 +146,7 @@ export function useStick(dependency: unknown) {
 export function useComposer(options: { onSend?(): void; warm(): void }) {
   const { cancel, canCancel, isPending: busy, send } = useSend();
   const attachments = useAttachments();
+  const { tab } = useWallet();
   const [prompt, setPrompt] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -160,6 +161,12 @@ export function useComposer(options: { onSend?(): void; warm(): void }) {
     const text = prompt.trim();
     const attached = attachments.ready;
     if ((!text && !attached.length) || attachments.uploading) return;
+    const command = /^\/tab(?:\s+(on|off))?$/i.exec(text);
+    if (command && !attached.length) {
+      setPrompt("");
+      setTab(command[1] ? command[1].toLowerCase() === "on" : !tab);
+      return;
+    }
     setPrompt("");
     attachments.clear();
     options.onSend?.();
