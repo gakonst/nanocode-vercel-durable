@@ -12,6 +12,9 @@ export const viewport: Viewport = { colorScheme: "light dark", interactiveWidget
 export default function ChatGptLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <script src={href("/frame.js")} />
+      </head>
       <body>
         <div id="root">{children}</div>
       </body>
