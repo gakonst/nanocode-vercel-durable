@@ -40,16 +40,16 @@ export const pay: typeof fetch = (input, init) => {
   return (payments?.fetch ?? locked)(input, body === init?.body ? init : { ...init, body });
 };
 
-let keeper: Promise<{ attach(session: string): Promise<string | undefined>; close(): void }> | undefined;
+let keeper: Promise<{ attach(session: string): Promise<string | undefined>; close(): void; prewarm(): Promise<unknown> }> | undefined;
 
 function load() {
-  return keeper ??= Promise.all([import("nanocode-ts"), import("nanocode-ts/bash")]).then(([{ handKeeper }, { Bash }]) => {
+  return keeper ??= Promise.all([import("nanocode-ts"), import("nanocode-ts/bash")]).then(([{ compileModule, handKeeper }, { Bash }]) => {
     let shell: ReturnType<typeof Bash.create> | undefined;
     let module: Promise<WebAssembly.Module> | undefined;
     return handKeeper({
       fetch: pay,
       mcpServers: Mcp.servers.map(server => ({ name: server.name, url: server.url })),
-      module: () => module ??= WebAssembly.compileStreaming(fetch(href("/nanocode_wasm.wasm"))),
+      module: () => module ??= compileModule(new URL(href("/nanocode_wasm.wasm"), location.href).href, process.env.NANOCODE_WASM_HASH ? { key: process.env.NANOCODE_WASM_HASH } : { cache: false }),
       onStatus: hand => set({ hand }),
       transport: "stream",
       url: id => new URL(href("/api/chat"), location.href).href + "?" + new URLSearchParams({ hand: channel(), sessionId: id }),
@@ -73,11 +73,23 @@ export function setTab(tab: boolean) {
   if (tab) localStorage.setItem(TAB, "1");
   else localStorage.removeItem(TAB);
   set({ tab });
-  if (tab) void load();
+  if (tab) warmTab();
   else {
     void keeper?.then(current => current.close());
     set({ hand: { state: "closed" } });
   }
+}
+
+function warmTab() {
+  if (state.tab) void load().then(current => current.prewarm());
+}
+
+export function prewarm(text: string) {
+  if (!state.tab) return;
+  void import("nanocode-ts/bash").then(bash => {
+    const packages = bash.pythonHint(text);
+    if (packages) void bash.preloadPython({}, packages);
+  });
 }
 
 export function where(hand: State["hand"], tab: boolean) {
@@ -92,6 +104,8 @@ function use(connected: Wallet.Wallet | undefined) {
 
 if (typeof window !== "undefined") {
   state = { ...state, tab: localStorage.getItem(TAB) === "1" };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(warmTab, { timeout: 1500 });
+  else setTimeout(warmTab, 500);
   Wallet.onPrompt(device => set({ device }));
   const saved = Wallet.restore();
   if (saved) void Wallet.published(saved).then(onChain => onChain && use(saved), () => {});

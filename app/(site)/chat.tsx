@@ -8,7 +8,7 @@ import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
-import { adopt, hand, prompts, setTab, useWallet } from "../_clones/hand";
+import { adopt, hand, prewarm, prompts, setTab, useWallet } from "../_clones/hand";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
@@ -192,7 +192,9 @@ function Agent(props: Props & { setup: Setup }) {
   };
 
   const warm = (value: string) => {
-    if (!busy && value && !value.startsWith("/")) transport.warm();
+    if (busy || !value || value.startsWith("/")) return;
+    transport.warm();
+    if (!session.token) prewarm(value);
   };
 
   const crash = async () => {
