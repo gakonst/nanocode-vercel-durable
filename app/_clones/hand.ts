@@ -1,6 +1,8 @@
 "use client";
 
 import type { HandStatus } from "nanocode-ts";
+import type { Bash } from "nanocode-ts/bash";
+import type { TransportFiles } from "nanocode-ts/client";
 import { Mcp, Payment, Payments, Wallet } from "nanocode-ts/machines";
 import { useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
@@ -40,11 +42,26 @@ export const pay: typeof fetch = (input, init) => {
   return (payments?.fetch ?? locked)(input, body === init?.body ? init : { ...init, body });
 };
 
+let shell: ReturnType<typeof Bash.create> | undefined;
+
+const TYPES: Record<string, string> = { avif: "image/avif", bmp: "image/bmp", gif: "image/gif", jpeg: "image/jpeg", jpg: "image/jpeg", png: "image/png", svg: "image/svg+xml", webp: "image/webp" };
+
+export function tabFiles<T extends { files?: TransportFiles }>(transport: T): T {
+  const files = transport.files;
+  if (!files) return transport;
+  const read = files.read.bind(files);
+  files.read = async (path, signal) => {
+    const bytes = state.tab && shell ? await (await shell).fs.read(path).catch(() => undefined) : undefined;
+    if (!bytes) return read(path, signal);
+    return new Blob([bytes.slice().buffer as ArrayBuffer], { type: TYPES[path.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream" });
+  };
+  return transport;
+}
+
 let keeper: Promise<{ attach(session: string): Promise<string | undefined>; close(): void; prewarm(): Promise<unknown> }> | undefined;
 
 function load() {
   return keeper ??= Promise.all([import("nanocode-ts"), import("nanocode-ts/bash")]).then(([{ compileModule, handKeeper }, { Bash }]) => {
-    let shell: ReturnType<typeof Bash.create> | undefined;
     let module: Promise<WebAssembly.Module> | undefined;
     return handKeeper({
       fetch: pay,

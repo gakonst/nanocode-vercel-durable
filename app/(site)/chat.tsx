@@ -8,7 +8,7 @@ import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
-import { adopt, hand, prewarm, prompts, setTab, useWallet } from "../_clones/hand";
+import { adopt, hand, prewarm, prompts, setTab, tabFiles, useWallet } from "../_clones/hand";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
@@ -48,14 +48,14 @@ export function Chat(props: Props) {
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
     const headers = (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {};
-    const transport = vercel({
+    const transport = tabFiles(vercel({
       hand: id => (session.token ? Promise.resolve(undefined) : hand(id)),
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
       headers,
       selection: () => ({ harness: session.selection.provider, model: session.selection.model, effort: session.selection.thinking }),
       session: { load: () => ({}), save: () => changed() },
-    });
+    }));
     const config = createConfig({
       history: { key: KEY },
       apply: event => {
