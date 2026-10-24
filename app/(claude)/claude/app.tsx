@@ -101,7 +101,7 @@ function Composer(props: { onSend(): void }) {
 }
 
 function Footer() {
-  return <p className="cl-foot"><Brand className="nc-brand" /> · Claude-style demo · durable agent in Vercel Functions, code in this tab · <HandBadge className="nc-hand" /> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
+  return <p className="cl-foot"><Brand className="nc-brand" /> · Claude-style demo · durable agent in Vercel Functions · <HandBadge className="nc-hand" /> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></p>;
 }
 
 function Prompts(props: { onSend(): void }) {

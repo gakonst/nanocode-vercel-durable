@@ -1,23 +1,22 @@
 "use client";
 
-import { handKeeper, type HandStatus } from "nanocode-ts";
-import { Bash } from "nanocode-ts/bash";
+import type { HandStatus } from "nanocode-ts";
 import { Mcp, Payment, Payments, Wallet } from "nanocode-ts/machines";
 import { useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 
 const CHANNEL = "nanocode-vercel-durable:hand";
 
+const TAB = "nanocode-vercel-durable:tab";
+
 Wallet.configure({ name: "nanocode on Vercel", relay: "api/device/", websiteUrl: "https://nanocode.xyz/vercel/" });
 
 const decoder = new TextDecoder();
 const locked = Payment.locked(Mcp.servers);
-let shell: Promise<Bash> | undefined;
-let module: Promise<WebAssembly.Module> | undefined;
 
-type State = { connected?: Wallet.Wallet; busy: boolean; error?: string; device?: Wallet.Prompt; hand: HandStatus & { session?: string } };
+type State = { connected?: Wallet.Wallet; busy: boolean; error?: string; device?: Wallet.Prompt; hand: HandStatus & { session?: string }; tab: boolean };
 
-let state: State = { busy: false, hand: { state: "closed" } };
+let state: State = { busy: false, hand: { state: "closed" }, tab: false };
 let payments: Payments.Payments | undefined;
 const listeners = new Set<() => void>();
 
@@ -41,24 +40,49 @@ export const pay: typeof fetch = (input, init) => {
   return (payments?.fetch ?? locked)(input, body === init?.body ? init : { ...init, body });
 };
 
-const keeper = handKeeper({
-  fetch: pay,
-  mcpServers: Mcp.servers.map(server => ({ name: server.name, url: server.url })),
-  module: () => module ??= WebAssembly.compileStreaming(fetch(href("/nanocode_wasm.wasm"))),
-  onStatus: hand => set({ hand }),
-  transport: "stream",
-  url: id => new URL(href("/api/chat"), location.href).href + "?" + new URLSearchParams({ hand: channel(), sessionId: id }),
-  workspace: async () => {
-    shell ??= Bash.create({ cwd: "/workspace", fetch: pay, github: { archive: (owner, repo, ref) => new URL(href("/api/github/" + owner + "/" + repo + "/" + ref), location.href).href } });
-    const ready = await shell;
-    return { cwd: ready.cwd, workspace: ready.workspace() };
-  },
-});
+let keeper: Promise<{ attach(session: string): Promise<string | undefined>; close(): void }> | undefined;
+
+function load() {
+  return keeper ??= Promise.all([import("nanocode-ts"), import("nanocode-ts/bash")]).then(([{ handKeeper }, { Bash }]) => {
+    let shell: ReturnType<typeof Bash.create> | undefined;
+    let module: Promise<WebAssembly.Module> | undefined;
+    return handKeeper({
+      fetch: pay,
+      mcpServers: Mcp.servers.map(server => ({ name: server.name, url: server.url })),
+      module: () => module ??= WebAssembly.compileStreaming(fetch(href("/nanocode_wasm.wasm"))),
+      onStatus: hand => set({ hand }),
+      transport: "stream",
+      url: id => new URL(href("/api/chat"), location.href).href + "?" + new URLSearchParams({ hand: channel(), sessionId: id }),
+      workspace: async () => {
+        shell ??= Bash.create({ cwd: "/workspace", fetch: pay, github: { archive: (owner, repo, ref) => new URL(href("/api/github/" + owner + "/" + repo + "/" + ref), location.href).href } });
+        const ready = await shell;
+        return { cwd: ready.cwd, workspace: ready.workspace() };
+      },
+    });
+  });
+}
 
 export async function hand(session?: string): Promise<string | undefined> {
+  if (!state.tab) return undefined;
   const id = channel();
   if (!session) return id;
-  return (await keeper.attach(session)) ? id : undefined;
+  return (await (await load()).attach(session)) ? id : undefined;
+}
+
+export function setTab(tab: boolean) {
+  if (tab) localStorage.setItem(TAB, "1");
+  else localStorage.removeItem(TAB);
+  set({ tab });
+  if (tab) void load();
+  else {
+    void keeper?.then(current => current.close());
+    set({ hand: { state: "closed" } });
+  }
+}
+
+export function where(hand: State["hand"], tab: boolean) {
+  if (!tab) return "Code runs on Vercel";
+  return hand.state === "attached" ? "Code runs in this tab" : hand.state === "connecting" ? "Attaching this tab…" : "Code will run in this tab";
 }
 
 function use(connected: Wallet.Wallet | undefined) {
@@ -67,6 +91,7 @@ function use(connected: Wallet.Wallet | undefined) {
 }
 
 if (typeof window !== "undefined") {
+  state = { ...state, tab: localStorage.getItem(TAB) === "1" };
   Wallet.onPrompt(device => set({ device }));
   const saved = Wallet.restore();
   if (saved) void Wallet.published(saved).then(onChain => onChain && use(saved), () => {});
@@ -97,14 +122,15 @@ export async function logout() {
   if (connected) await Wallet.revoke(connected).catch(() => {});
 }
 
+const server: State = { busy: false, hand: { state: "closed" }, tab: false };
+
 export function useWallet() {
-  return useSyncExternalStore(listener => { listeners.add(listener); return () => void listeners.delete(listener); }, () => state, () => state);
+  return useSyncExternalStore(listener => { listeners.add(listener); return () => void listeners.delete(listener); }, () => state, () => server);
 }
 
 export const prompts = [
   "Clone vercel/ai and chart its largest source files with Python",
-  "Run a WebAssembly add function in this tab",
+  "Run a WebAssembly add function",
   "Store a note in the Tempo gateway's KV and read it back",
   "Search the web with Mercator for today's Tempo news",
 ];
-
