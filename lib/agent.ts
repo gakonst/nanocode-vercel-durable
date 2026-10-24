@@ -1,5 +1,5 @@
 import type { HostTool } from "durable-harness";
-import { githubArchives } from "nanocode-ts/bash";
+import { BASH_CODE_MODE_INSTRUCTIONS, githubArchives } from "nanocode-ts/bash";
 import { createNanocode } from "nanocode-ts/vercel";
 import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
@@ -15,7 +15,7 @@ const isPublic = !token && process.env.CHAT_PUBLIC === "1";
 export const nanocode = createNanocode({
   harnesses,
   defaultSelection,
-  instructions: INSTRUCTIONS,
+  instructions: INSTRUCTIONS + "\n\nWhen the browser tab is attached, a cell there has these globals, not tools: " + BASH_CODE_MODE_INSTRUCTIONS,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
   fetch: githubArchives(),
