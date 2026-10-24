@@ -1,12 +1,14 @@
 "use client";
 
 import { createConfig, modelItems, thinkingItems } from "nanocode-ts/client";
+import { Keyring, Wallet } from "nanocode-ts/machines";
+import { Prompts, Unlock, useUnlock, walletCards } from "nanocode-ts/machines/react";
 import { Chat as View, NanocodeProvider, type Picker, useConfig, useConversations, useSend } from "nanocode-ts/react";
 import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
-import { hand, login, logout, prompts, useWallet } from "../_clones/hand";
+import { adopt, hand, prompts, useWallet } from "../_clones/hand";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
@@ -37,18 +39,19 @@ function save(next: Partial<Saved>) {
 
 type Session = { selection: Selection; token: string };
 
-type Setup = { session: Session; transport: VercelTransport; subscribe(listener: () => void): () => void; changed(): void };
+type Setup = { session: Session; transport: VercelTransport; keyring: Keyring.Keyring; subscribe(listener: () => void): () => void; changed(): void };
 
 export function Chat(props: Props) {
   const [setup] = useState(() => {
     const session: Session = { selection: props.defaultSelection, token: "" };
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
+    const headers = (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {};
     const transport = vercel({
       hand: () => (session.token ? Promise.resolve(undefined) : hand()),
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
-      headers: (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {},
+      headers,
       selection: () => ({ harness: session.selection.provider, model: session.selection.model, effort: session.selection.thinking }),
       session: { load: () => ({}), save: () => changed() },
     });
@@ -65,7 +68,12 @@ export function Chat(props: Props) {
       },
       transport,
     });
-    return { config, session, transport, changed, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
+    Wallet.configure({ name: "nanocode on Vercel", relay: href("/api/device/"), websiteUrl: "https://nanocode.xyz/vercel/" });
+    const keyring = Keyring.keyring({ url: href("/api/keys"), headers, scope: async () => {
+      const id = await transport.open();
+      return id ? { sessionId: id } : undefined;
+    } });
+    return { config, session, transport, keyring, changed, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
   });
 
   return (
@@ -86,6 +94,9 @@ function Agent(props: Props & { setup: Setup }) {
   const [token, setToken] = useState("");
   const [, setVersion] = useState(0);
   const started = useRef(false);
+  const unlock = useUnlock(setup.keyring);
+
+  useEffect(() => adopt(unlock.connected), [unlock.connected]);
 
   useEffect(() => setup.subscribe(() => setVersion(version => version + 1)), [setup]);
 
@@ -190,9 +201,13 @@ function Agent(props: Props & { setup: Setup }) {
   return (
     <View
       actions={<button disabled={busy} onClick={reset} type="button" {...styles.suggestion({ quiet: true })}>New session</button>}
-      commands={COMMANDS}
+      after={walletCards(unlock)}
+      commands={[...COMMANDS, ...unlock.commands]}
       empty="Ask a question to start a turn, or type /model to choose a model."
-      extras={needsToken && (
+      extras={<>
+        <Unlock machine={unlock} />
+        <Prompts machine={unlock} />
+        {needsToken && (
         <label {...styles.row()}>
           <span aria-hidden="true" {...styles.chevron()}>#</span>
           <input
@@ -208,14 +223,15 @@ function Agent(props: Props & { setup: Setup }) {
             {...styles.input()}
           />
         </label>
-      )}
+        )}
+      </>}
       link={{ href: "https://nanocode.xyz/", label: "nanocode.xyz →" }}
       onInput={warm}
       onPickerClose={() => setPicker(null)}
-      onSubmit={text => { if (!command(text)) void send(text); }}
+      onSubmit={text => { if (unlock.handles(text)) void unlock.command(text); else if (!command(text)) void send(text); }}
       picker={picker}
       status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${transport.session().id ?? "new session"} · ${wallet.hand.state === "attached" ? "cells in this tab" : "cells on Vercel"} · ${busy ? "running" : "idle"}`}
-      suggestions={[...prompts.map(prompt => ({ label: prompt, onClick: () => void send(prompt), disabled: busy })), wallet.device ? { label: "Approve code " + wallet.device.userCode + " in Tempo Wallet", onClick: () => void window.open(wallet.device!.verificationUriFull ?? wallet.device!.verificationUri, "_blank") } : wallet.connected ? { label: "Log out " + wallet.connected.address.slice(0, 6), onClick: () => void logout() } : { label: wallet.busy ? "Connecting" : "Connect Tempo Wallet", onClick: () => void login(), disabled: wallet.busy }, ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
+      suggestions={[...prompts.map(prompt => ({ label: prompt, onClick: () => void send(prompt), disabled: busy })), ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
     />
   );
 }
