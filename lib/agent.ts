@@ -1,5 +1,6 @@
 import type { HostTool } from "durable-harness";
 import { BASH_CODE_MODE_INSTRUCTIONS, githubArchives } from "nanocode-ts/bash";
+import { createWallets } from "nanocode-ts/machines/vercel";
 import { createNanocode } from "nanocode-ts/vercel";
 import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
@@ -12,6 +13,20 @@ const token = process.env.CHAT_TOKEN;
 
 const isPublic = !token && process.env.CHAT_PUBLIC === "1";
 
+const authorize = (request: Request) => {
+  if (token && request.headers.get("authorization") !== `Bearer ${token}`) throw new Response("unauthorized", { status: 401 });
+};
+
+export const wallets = createWallets({
+  sessions: () => nanocode.agent.sessions,
+  secret: process.env.KEY_SECRET,
+  authorize: request => {
+    if (!token && !isPublic && process.env.NODE_ENV === "production") throw new Response("set CHAT_TOKEN or CHAT_PUBLIC=1", { status: 401 });
+    authorize(request);
+  },
+  ...(process.env.TEMPO_RPC ? { rpc: process.env.TEMPO_RPC } : {}),
+});
+
 export const nanocode = createNanocode({
   harnesses,
   defaultSelection,
@@ -23,7 +38,8 @@ export const nanocode = createNanocode({
   durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
   marks: process.env.HARNESS_MARKS === "1",
   chaos: process.env.HARNESS_CHAOS === "1",
-  authorize: token ? request => { if (request.headers.get("authorization") !== `Bearer ${token}`) throw new Response("unauthorized", { status: 401 }); } : isPublic ? "public" : undefined,
+  authorize: token ? authorize : isPublic ? "public" : undefined,
+  mcp: wallets.mcp,
   ...(isPublic ? { maxPrompts: 20, maxPromptCharacters: 2000 } : {}),
 });
 

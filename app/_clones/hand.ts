@@ -72,6 +72,11 @@ if (typeof window !== "undefined") {
   if (saved) void Wallet.published(saved).then(onChain => onChain && use(saved), () => {});
 }
 
+export function adopt(connected: Wallet.Wallet | undefined) {
+  if (!connected && Wallet.restore()) return;
+  if (state.connected?.keyAddress !== connected?.keyAddress) use(connected);
+}
+
 export async function login() {
   set({ busy: true, error: undefined });
   try {
