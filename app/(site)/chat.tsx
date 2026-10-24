@@ -8,7 +8,7 @@ import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
-import { adopt, hand, prewarm, prompts, setTab, tabFiles, useWallet } from "../_clones/hand";
+import { prompts } from "../_clones/prompts";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
@@ -21,7 +21,6 @@ const COMMANDS = [
   { label: "/model", detail: "choose harness, model and thinking for a new session" },
   { label: "/effort", detail: "choose the thinking of the next turns" },
   { label: "/new", detail: "start a new session" },
-  { label: "/tab", detail: "run a new session's Code Mode cells in this tab, or on Vercel again" },
 ];
 
 const KEY = "nanocode-vercel-durable";
@@ -48,14 +47,13 @@ export function Chat(props: Props) {
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
     const headers = (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {};
-    const transport = tabFiles(vercel({
-      hand: id => (session.token ? Promise.resolve(undefined) : hand(id)),
+    const transport = vercel({
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
       headers,
       selection: () => ({ harness: session.selection.provider, model: session.selection.model, effort: session.selection.thinking }),
       session: { load: () => ({}), save: () => changed() },
-    }));
+    });
     const config = createConfig({
       history: { key: KEY },
       apply: event => {
@@ -89,7 +87,6 @@ function Agent(props: Props & { setup: Setup }) {
   const { session, transport } = setup;
   const config = useConfig();
   const { send, isPending: busy } = useSend();
-  const wallet = useWallet();
   const { current: conversation } = useConversations();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [token, setToken] = useState("");
@@ -97,8 +94,6 @@ function Agent(props: Props & { setup: Setup }) {
   const [hydrated, setHydrated] = useState(false);
   const started = useRef(false);
   const unlock = useUnlock(setup.keyring);
-
-  useEffect(() => adopt(unlock.connected), [unlock.connected]);
 
   useEffect(() => setup.subscribe(() => setVersion(version => version + 1)), [setup]);
 
@@ -163,12 +158,6 @@ function Agent(props: Props & { setup: Setup }) {
       config.note("tool", "new session");
       return true;
     }
-    if (name === "/tab") {
-      const tab = argument ? argument !== "off" : !wallet.tab;
-      setTab(tab);
-      config.note("tool", tab ? "New sessions run their Code Mode cells in this tab, with a fetch that pays MPP services from your wallet; type /new to start one. /tab again runs them on Vercel." : "Code Mode cells run on Vercel, in the Function beside the agent. /tab runs a new session's cells in this tab.");
-      return true;
-    }
     if (name === "/model") {
       if (!argument) {
         setPicker({ title: "Model", filter: true, items: query => modelItems(harnesses, session.selection.model, query), onChoose: item => pick(item.label) });
@@ -197,7 +186,6 @@ function Agent(props: Props & { setup: Setup }) {
   const warm = (value: string) => {
     if (busy || !value || value.startsWith("/")) return;
     transport.warm();
-    if (!session.token) prewarm(value);
   };
 
   const crash = async () => {
@@ -214,7 +202,6 @@ function Agent(props: Props & { setup: Setup }) {
     <View
       actions={<>
         <button disabled={busy} onClick={reset} type="button" {...styles.suggestion({ quiet: true })}>New session</button>
-        <button onClick={() => setTab(!wallet.tab)} title="Where a new session's Code Mode cells run: in the Vercel Function, or in this tab with a fetch paid from your wallet" type="button" {...styles.suggestion({ quiet: true })}>{wallet.tab ? "Run code on Vercel" : "Run code in this tab"}</button>
       </>}
       after={walletCards(unlock)}
       commands={[...COMMANDS, ...unlock.commands]}
@@ -245,7 +232,7 @@ function Agent(props: Props & { setup: Setup }) {
       onPickerClose={() => setPicker(null)}
       onSubmit={text => { if (unlock.handles(text)) void unlock.command(text); else if (!command(text)) void send(text); }}
       picker={picker}
-      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${(hydrated && transport.session().id) || "new session"} · ${!wallet.tab ? "cells on Vercel" : wallet.hand.state === "attached" ? "cells in this tab" : "cells in this tab from the next session"} · ${busy ? "running" : "idle"}`}
+      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${(hydrated && transport.session().id) || "new session"} · ${busy ? "running" : "idle"}`}
       suggestions={[...prompts.map(prompt => ({ label: prompt, onClick: () => void send(prompt), disabled: busy })), ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
     />
   );

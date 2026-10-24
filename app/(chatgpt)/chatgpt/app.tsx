@@ -4,8 +4,8 @@ import type { TurnBlock } from "nanocode-ts/client";
 import { AttachmentList, Markdown, NanocodeProvider, useSend, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
 import { useState } from "react";
 import { type Block, createClone, CopyCode, grouped, highlight, seconds, Token, useComposer, useDismiss, useResume, useSidebar, useStick } from "../../_clones/chat";
-import { prompts } from "../../_clones/hand";
-import { Brand, HandBadge, WalletButton } from "../../_clones/wallet";
+import { prompts } from "../../_clones/prompts";
+import { Brand, WalletButton } from "../../_clones/wallet";
 import { ArrowUp, Check, Chevron, Compose, Plus, Sidebar, Stop, Trash } from "../../_clones/icons";
 
 const clone = createClone("nanocode-vercel-durable:chatgpt", "codex");
@@ -124,7 +124,7 @@ function Composer(props: { onSend(): void }) {
 }
 
 function Footer() {
-  return <p className="gpt-foot"><Brand className="nc-brand" /><span className="nc-about"> · ChatGPT-style demo · durable agent in Vercel Functions</span> · <HandBadge className="nc-hand" /><span className="nc-about"> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></span><span className="nc-site"> · <a href="https://nanocode.xyz/" rel="noreferrer" target="_blank">nanocode.xyz →</a></span></p>;
+  return <p className="gpt-foot"><Brand className="nc-brand" /><span className="nc-about"> · ChatGPT-style demo · durable agent in Vercel Functions</span><span className="nc-about"> · built with <a href="https://github.com/gakonst/nanocode-ts" rel="noreferrer" target="_blank">nanocode-ts</a></span><span className="nc-site"> · <a href="https://nanocode.xyz/" rel="noreferrer" target="_blank">nanocode.xyz →</a></span></p>;
 }
 
 function Prompts(props: { onSend(): void }) {
