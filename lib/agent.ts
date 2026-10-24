@@ -10,6 +10,8 @@ export const FILE_INSTRUCTIONS = "The visitor sees files you save under /workspa
 
 export const WASM_INSTRUCTIONS = "In cells `WebAssembly.instantiate(bytes)` works, but every export is an async function: await each call (`await instance.exports.add(20, 22)`), i64 values are BigInts, and a memory export has async `read(offset, length)` and `write(offset, bytes)`.";
 
+export const SUBAGENT_INSTRUCTIONS = "When the visitor asks for subagents, or for several independent pieces of work at once, start one subagent per piece with `tools.spawn_agent({ role, task })` from a cell (they run in parallel, each with its own tools), then collect their results with `tools.wait_agent({ agent_ids })`; do not do their work yourself inside one cell.";
+
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [chargeTool(record)];
 
 const token = process.env.CHAT_TOKEN;
@@ -34,7 +36,7 @@ export const wallets = createWallets({
 export const nanocode = createNanocode({
   harnesses,
   defaultSelection,
-  instructions: INSTRUCTIONS + " " + WASM_INSTRUCTIONS + " " + FILE_INSTRUCTIONS,
+  instructions: INSTRUCTIONS + " " + WASM_INSTRUCTIONS + " " + FILE_INSTRUCTIONS + " " + SUBAGENT_INSTRUCTIONS,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
   sessionFetch: wallets.fetch,
