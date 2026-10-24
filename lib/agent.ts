@@ -36,6 +36,7 @@ export const nanocode = createNanocode({
   fetch: githubArchives(),
   hands: process.env.HAND_RELAY ? { relay: channel => process.env.HAND_RELAY + channel + "/brain" } : {},
   durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
+  directDriveMs: 280_000,
   marks: process.env.HARNESS_MARKS === "1",
   chaos: process.env.HARNESS_CHAOS === "1",
   authorize: token ? authorize : isPublic ? "public" : undefined,
