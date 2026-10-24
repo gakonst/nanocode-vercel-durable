@@ -6,6 +6,7 @@ import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
+import { hand, login, logout, prompts, useWallet } from "../_clones/hand";
 import { find, type Model, type Selection, type Thinking } from "@/lib/settings";
 
 type Harness = { id: Selection["provider"]; label: string; models: Model[] };
@@ -44,6 +45,7 @@ export function Chat(props: Props) {
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
     const transport = vercel({
+      hand: () => (session.token ? Promise.resolve(undefined) : hand()),
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
       headers: (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {},
@@ -78,6 +80,7 @@ function Agent(props: Props & { setup: Setup }) {
   const { session, transport } = setup;
   const config = useConfig();
   const { send, isPending: busy } = useSend();
+  const wallet = useWallet();
   const { current: conversation } = useConversations();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [token, setToken] = useState("");
@@ -211,8 +214,8 @@ function Agent(props: Props & { setup: Setup }) {
       onPickerClose={() => setPicker(null)}
       onSubmit={text => { if (!command(text)) void send(text); }}
       picker={picker}
-      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${transport.session().id ?? "new session"} · ${busy ? "running" : "idle"}`}
-      suggestions={[...suggestions, ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
+      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${transport.session().id ?? "new session"} · ${wallet.hand.state === "attached" ? "cells in this tab" : "cells on Vercel"} · ${busy ? "running" : "idle"}`}
+      suggestions={[...prompts.map(prompt => ({ label: prompt, onClick: () => void send(prompt), disabled: busy })), wallet.device ? { label: "Approve code " + wallet.device.userCode + " in Tempo Wallet", onClick: () => void window.open(wallet.device!.verificationUriFull ?? wallet.device!.verificationUri, "_blank") } : wallet.connected ? { label: "Log out " + wallet.connected.address.slice(0, 6), onClick: () => void logout() } : { label: wallet.busy ? "Connecting" : "Connect Tempo Wallet", onClick: () => void login(), disabled: wallet.busy }, ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
     />
   );
 }

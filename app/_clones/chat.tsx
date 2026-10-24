@@ -6,6 +6,7 @@ import { vercel } from "nanocode-ts/vercel/transport";
 import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
+import { hand } from "./hand";
 
 export type Block = TurnBlock | { kind: "tools"; cells: Cell[]; live: boolean };
 
@@ -41,6 +42,7 @@ export function createClone(key: string, harness: "claude" | "codex") {
   };
 
   const transport = vercel({
+    hand: () => (localStorage.getItem(TOKEN) ? Promise.resolve(undefined) : hand()),
     headers: (): Record<string, string> => {
       const token = localStorage.getItem(TOKEN);
       return token ? { authorization: "Bearer " + token } : {};
