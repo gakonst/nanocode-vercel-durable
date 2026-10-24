@@ -19,7 +19,7 @@
     "@pierre/highlights": "0.2.0",
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
-    "nanocode-ts": "github:gakonst/nanocode-ts#e57613c2cffb8ab201cada970127af277407aad8",
+    "nanocode-ts": "github:gakonst/nanocode-ts#63ff87bf00a678055d6ca718bda06d7e6d5af7a6",
     "next": "16.4.2",
     "pyodide": "314.0.7",
     "react": "19.3.1",
