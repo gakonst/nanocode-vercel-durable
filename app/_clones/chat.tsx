@@ -6,7 +6,7 @@ import { vercel } from "nanocode-ts/vercel/transport";
 import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
-import { hand } from "./hand";
+import { hand, prewarm } from "./hand";
 
 export type Block = TurnBlock | { kind: "tools"; cells: Cell[]; live: boolean };
 
@@ -167,7 +167,10 @@ export function useComposer(options: { onSend?(): void; warm(): void }) {
     "aria-label": "Message",
     onChange: (event: { target: { value: string } }) => {
       setPrompt(event.target.value);
-      if (!busy && event.target.value) options.warm();
+      if (!busy && event.target.value) {
+        options.warm();
+        if (!localStorage.getItem(TOKEN)) prewarm(event.target.value);
+      }
     },
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) return;
