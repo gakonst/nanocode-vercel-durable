@@ -9,6 +9,8 @@ export const INSTRUCTIONS = `You are nanocode, a coding agent running in a Verce
 
 export const FILE_INSTRUCTIONS = "The visitor sees files you save under /workspace: to show an image a cell wrote (a matplotlib chart saved with savefig('/workspace/chart.png'), an SVG diagram), embed it in your answer as ![what it shows](workspace:/workspace/chart.png), never as a sandbox: link or a data URL. Files the visitor attaches are saved under /workspace/uploads and listed as Attached: lines at the end of their message; images among them are also shown to you.";
 
+export const HAND_WASM_INSTRUCTIONS = "In those cells `WebAssembly.instantiate(bytes)` works, but every export is an async function: await each call (`await instance.exports.add(20, 22)`), i64 values are BigInts, and a memory export has async `read(offset, length)` and `write(offset, bytes)`.";
+
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [chargeTool(record)];
 
 const token = process.env.CHAT_TOKEN;
@@ -33,7 +35,7 @@ export const nanocode = createNanocode({
   harnesses,
   defaultSelection,
   instructions: INSTRUCTIONS + " " + FILE_INSTRUCTIONS,
-  handInstructions: "Cells in the browser tab have these globals, not tools: " + BASH_CODE_MODE_INSTRUCTIONS,
+  handInstructions: "Cells in the browser tab have these globals, not tools: " + BASH_CODE_MODE_INSTRUCTIONS + " " + HAND_WASM_INSTRUCTIONS,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
   fetch: githubArchives(),
