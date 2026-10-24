@@ -1,12 +1,12 @@
 "use client";
 
 import type { TurnBlock } from "nanocode-ts/client";
-import { Markdown, NanocodeProvider, useSend, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
+import { AttachmentList, Markdown, NanocodeProvider, useSend, type Skin, ToolCell, useActivity, useConversations, useTurns } from "nanocode-ts/react";
 import { useState } from "react";
 import { type Block, createClone, CopyCode, grouped, highlight, seconds, Token, useComposer, useDismiss, useResume, useSidebar, useStick } from "../../_clones/chat";
 import { prompts } from "../../_clones/hand";
 import { Brand, HandBadge, WalletButton } from "../../_clones/wallet";
-import { ArrowUp, Check, Chevron, Compose, Sidebar, Stop, Trash } from "../../_clones/icons";
+import { ArrowUp, Check, Chevron, Compose, Plus, Sidebar, Stop, Trash } from "../../_clones/icons";
 
 const clone = createClone("nanocode-vercel-durable:chatgpt", "codex");
 
@@ -109,7 +109,12 @@ function Composer(props: { onSend(): void }) {
   const composer = useComposer({ onSend: props.onSend, warm: () => clone.transport.warm() });
 
   return (
-    <div className="gpt-composer" onClick={composer.focus}>
+    <div className="gpt-composer" data-dragging={composer.attachments.dragging} onClick={composer.focus} {...composer.attachments.drop}>
+      <AttachmentList items={composer.attachments.items} onRemove={composer.attachments.remove} />
+      {composer.attachments.enabled && <>
+        <input {...composer.attachments.input} />
+        <button aria-label="Attach files" className="gpt-attach" onClick={event => { event.stopPropagation(); composer.attachments.open(); }} title="Attach files" type="button"><Plus /></button>
+      </>}
       <textarea placeholder={composer.busy ? "Steer the response" : "Ask anything"} {...composer.textarea} />
       {composer.canCancel && composer.empty
         ? <button aria-label="Stop" className="gpt-send" onClick={event => { event.stopPropagation(); void composer.cancel(); }} type="button"><Stop /></button>
@@ -178,7 +183,7 @@ function App(props: { needsToken: boolean }) {
               <div className="gpt-thread">
                 {thread.map((turn, index) => (
                   <section className="gpt-turn" key={turn.id}>
-                    {turn.prompt && <div className="gpt-user"><div className="gpt-bubble">{turn.prompt.text}</div></div>}
+                    {turn.prompt && <div className="gpt-user"><div className="gpt-bubble">{turn.prompt.text}{turn.prompt.attachments?.length ? <AttachmentList items={turn.prompt.attachments} /> : null}</div></div>}
                     <div className="gpt-assistant">
                       {grouped(turn.blocks).map((block, position) => <BlockView block={block} key={position} />)}
                       {waiting && index === thread.length - 1 && <span aria-label="Responding" className="gpt-dot" />}
