@@ -6,7 +6,8 @@ import { vercel } from "nanocode-ts/vercel/transport";
 import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
-import { hand, prewarm, setTab, tabFiles, useWallet } from "./hand";
+import { Keyring } from "nanocode-ts/machines";
+import { ensure, track } from "./account";
 
 export type Block = TurnBlock | { kind: "tools"; cells: Cell[]; live: boolean };
 
@@ -41,12 +42,13 @@ export function createClone(key: string, harness: "claude" | "codex") {
     return models.find(model => model.id === id) ?? models[0]!;
   };
 
-  const transport = tabFiles(vercel({
-    hand: session => (localStorage.getItem(TOKEN) ? Promise.resolve(undefined) : hand(session)),
-    headers: (): Record<string, string> => {
-      const token = localStorage.getItem(TOKEN);
-      return token ? { authorization: "Bearer " + token } : {};
-    },
+  const headers = (): Record<string, string> => {
+    const token = localStorage.getItem(TOKEN);
+    return token ? { authorization: "Bearer " + token } : {};
+  };
+
+  const transport = vercel({
+    headers,
     selection: () => {
       const model = current();
       return { effort: model.efforts.includes("low") ? "low" : model.effort, harness, model: model.id };
@@ -61,7 +63,12 @@ export function createClone(key: string, harness: "claude" | "codex") {
       },
     },
     url: href("/api/chat"),
-  }));
+  });
+
+  track(Keyring.keyring({ url: href("/api/keys"), headers, scope: async () => {
+    const id = await transport.open();
+    return id ? { sessionId: id } : undefined;
+  } }));
 
   const config = createConfig({ history: { key }, transport });
 
@@ -146,7 +153,6 @@ export function useStick(dependency: unknown) {
 export function useComposer(options: { onSend?(): void; warm(): void }) {
   const { cancel, canCancel, isPending: busy, send } = useSend();
   const attachments = useAttachments();
-  const { tab } = useWallet();
   const [prompt, setPrompt] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -161,26 +167,17 @@ export function useComposer(options: { onSend?(): void; warm(): void }) {
     const text = prompt.trim();
     const attached = attachments.ready;
     if ((!text && !attached.length) || attachments.uploading) return;
-    const command = /^\/tab(?:\s+(on|off))?$/i.exec(text);
-    if (command && !attached.length) {
-      setPrompt("");
-      setTab(command[1] ? command[1].toLowerCase() === "on" : !tab);
-      return;
-    }
     setPrompt("");
     attachments.clear();
     options.onSend?.();
-    void send(text, attached);
+    void ensure().finally(() => send(text, attached));
   };
 
   const textarea = {
     "aria-label": "Message",
     onChange: (event: { target: { value: string } }) => {
       setPrompt(event.target.value);
-      if (!busy && event.target.value) {
-        options.warm();
-        if (!localStorage.getItem(TOKEN)) prewarm(event.target.value);
-      }
+      if (!busy && event.target.value) options.warm();
     },
     onPaste: attachments.onPaste,
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => {

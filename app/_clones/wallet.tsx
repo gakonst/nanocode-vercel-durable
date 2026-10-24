@@ -2,7 +2,7 @@
 
 import { Wallet } from "nanocode-ts/machines";
 import { type MouseEvent, useState } from "react";
-import { login, logout, setTab, useWallet, where } from "./hand";
+import { login, logout, useWallet } from "./account";
 
 export function WalletButton(props: { className?: string }) {
   const wallet = useWallet();
@@ -20,11 +20,6 @@ export function WalletButton(props: { className?: string }) {
       )}
     </span>
   );
-}
-
-export function HandBadge(props: { className?: string }) {
-  const { hand, tab } = useWallet();
-  return <button className={props.className} data-state={tab ? hand.state : "server"} onClick={() => setTab(!tab)} title={tab ? "New sessions run their Code Mode cells in this browser tab, with a fetch that pays MPP services from your wallet. Click to run them on Vercel again." : "Code Mode cells run in the Vercel Function beside the agent. Click to run a new session's cells in this tab instead, with a fetch that pays MPP services from your wallet."} type="button">{where(hand, tab)}</button>;
 }
 
 export function Brand(props: { className?: string }) {
