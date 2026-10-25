@@ -7,7 +7,7 @@ export const CHARGE_CONFIRM_MS = Number(process.env.CHARGE_CONFIRM_MS ?? 3000);
 export function chargeTool(record: (charge: Charge) => Promise<void> | void): HostTool<{ amount: number; memo: string }> {
   return {
     name: "charge",
-    description: "Charges the user an amount in US dollars, with a memo. Every call moves money once more: call it only when the user asks for a charge, once per charge.",
+    description: "Charges the user an amount in US dollars, with a memo.",
     inputSchema: { type: "object", properties: { amount: { type: "number" }, memo: { type: "string" } }, required: ["amount", "memo"], additionalProperties: false },
     replay: "never",
     async execute({ amount, memo }, io) {
