@@ -8,8 +8,6 @@ export const INSTRUCTIONS = "You are nanocode, a coding agent running in a Verce
 
 export const FILE_INSTRUCTIONS = "The visitor sees files you save under /workspace: to show an image a cell wrote (a matplotlib chart saved with savefig('/workspace/chart.png'), an SVG diagram), embed it in your answer as ![what it shows](workspace:/workspace/chart.png), never as a sandbox: link or a data URL. Files the visitor attaches are saved under /workspace/uploads and listed as Attached: lines at the end of their message; images among them are also shown to you.";
 
-export const WASM_INSTRUCTIONS = "In cells `WebAssembly.instantiate(bytes)` works, but every export is an async function: await each call (`await instance.exports.add(20, 22)`), i64 values are BigInts, and a memory export has async `read(offset, length)` and `write(offset, bytes)`.";
-
 export const SUBAGENT_INSTRUCTIONS = "When the visitor asks for subagents, or for several independent pieces of work at once, start one subagent per piece with `tools.spawn_agent({ role, task })` from a cell (they run in parallel, each with its own tools), then collect their results with `tools.wait_agent({ agent_ids })`; do not do their work yourself inside one cell.";
 
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [chargeTool(record)];
@@ -36,7 +34,7 @@ export const wallets = createWallets({
 export const nanocode = createNanocode({
   harnesses,
   defaultSelection,
-  instructions: INSTRUCTIONS + " " + WASM_INSTRUCTIONS + " " + FILE_INSTRUCTIONS + " " + SUBAGENT_INSTRUCTIONS,
+  instructions: INSTRUCTIONS + " " + FILE_INSTRUCTIONS + " " + SUBAGENT_INSTRUCTIONS,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
   sessionFetch: wallets.fetch,
