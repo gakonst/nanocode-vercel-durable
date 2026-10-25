@@ -32,7 +32,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   const files = paths(dir);
   process.env.WORKFLOW_LOCAL_DATA_DIR = files.data;
   process.env.CHARGE_CONFIRM_MS = String(CHARGE_CONFIRM_MS);
-  const [{ durableAgent, getWorld, isSettled }, nanocode, { scriptedDispatch }, { INSTRUCTIONS, appTools }] = await Promise.all([
+  const [{ durableAgent, getWorld, isSettled }, nanocode, { scriptedDispatch }, { appTools }] = await Promise.all([
     import("durable-harness"),
     import("nanocode-ts/vercel"),
     import("./scripted.ts"),
@@ -45,7 +45,6 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
       model: MODELS[provider],
       endpoint: nanocode.gatewayEndpoint(provider),
       ...(provider === "codex" ? { gateway: "vercel" as const } : {}),
-      instructions: INSTRUCTIONS,
       durability,
       dispatch: scriptedDispatch(provider, files.requests),
       tools: appTools(charge => appendFileSync(files.ledger, `${JSON.stringify(charge)}\n`)),
