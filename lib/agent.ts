@@ -1,10 +1,13 @@
 import type { HostTool } from "durable-harness";
+import { upgradeWebSocket } from "@vercel/functions";
 import { createWallets } from "nanocode-ts/machines/vercel";
 import { createNanocode } from "nanocode-ts/vercel";
 import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [chargeTool(record)];
+
+const HAND_INSTRUCTIONS = "This session's Code Mode cells run on the visitor's own computer, which they connected with `nc hand`: the tools in your scripts act on their real files and shell, starting in the folder they ran it from. Work in that folder unless they ask otherwise, tell them what you will run before anything that changes their system, and never delete their files, install software, use their credentials or send their data anywhere unless they ask you to.";
 
 const token = process.env.CHAT_TOKEN;
 
@@ -32,7 +35,8 @@ export const nanocode = createNanocode({
   report: drive => console.log(JSON.stringify({ drive })),
   sessionFetch: wallets.fetch,
   promptImages: session => /^(?:claude-|gpt-)/.test(session.model ?? ""),
-  hands: false,
+  hands: { upgrade: upgradeWebSocket, name: "machine" },
+  handInstructions: HAND_INSTRUCTIONS,
   durability: process.env.NANOCODE_DURABILITY === "strict" ? "strict" : "on",
   directDriveMs: 280_000,
   marks: process.env.HARNESS_MARKS === "1",

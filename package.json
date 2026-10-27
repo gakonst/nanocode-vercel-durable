@@ -17,13 +17,15 @@
   },
   "dependencies": {
     "@pierre/highlights": "0.2.0",
+    "@vercel/functions": "3.10.4",
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
-    "nanocode-ts": "github:gakonst/nanocode-ts#9e903d2387a821f4aed7fea6d3a4fc9570031067",
+    "nanocode-ts": "github:gakonst/nanocode-ts#ca5ce59d668a0305ebe3f1c6d9439255bae46ebc",
     "next": "16.4.2",
     "pyodide": "314.0.7",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "ws": "8.22.0",
     "zyzz": "0.0.40"
   },
   "devDependencies": {
