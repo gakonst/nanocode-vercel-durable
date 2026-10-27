@@ -3,7 +3,7 @@
 import { createConfig, modelItems, thinkingItems } from "nanocode-ts/client";
 import { Keyring, Wallet } from "nanocode-ts/machines";
 import { Prompts, Unlock, useUnlock, walletCards } from "nanocode-ts/machines/react";
-import { Hand, Chat as View, NanocodeProvider, type Picker, useConfig, useConversations, useSend } from "nanocode-ts/react";
+import { Chat as View, HandConnect, NanocodeProvider, type Picker, useConfig, useConversations, useHand, useSend } from "nanocode-ts/react";
 import { skin, styles } from "nanocode-ts/react/skin";
 import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
@@ -96,24 +96,10 @@ function Agent(props: Props & { setup: Setup }) {
   const [hydrated, setHydrated] = useState(false);
   const started = useRef(false);
   const unlock = useUnlock(setup.keyring);
-  const [handOpen, setHandOpen] = useState(false);
-  const [machines, setMachines] = useState<(string | null)[]>([]);
+  const hand = useHand(transport);
   const sessionId = hydrated ? transport.session().id : undefined;
-  const connected = machines.length > 0;
 
-  useEffect(() => {
-    if (!sessionId || (!handOpen && !connected)) return;
-    let stopped = false;
-    const poll = async () => {
-      const found = await transport.hands().catch(() => []);
-      if (!stopped) setMachines(found);
-    };
-    void poll();
-    const timer = setInterval(() => void poll(), handOpen ? 3000 : 20_000);
-    return () => { stopped = true; clearInterval(timer); };
-  }, [sessionId, handOpen, connected]);
-
-  useEffect(() => setMachines([]), [sessionId]);
+  useEffect(() => hand.reset(), [sessionId]);
 
   useEffect(() => setup.subscribe(() => setVersion(version => version + 1)), [setup]);
 
@@ -170,23 +156,6 @@ function Agent(props: Props & { setup: Setup }) {
     setup.changed();
   };
 
-  const connect = async () => {
-    setHandOpen(true);
-    const id = await transport.open();
-    setup.changed();
-    if (!id) return config.note("error", "Could not start a session to connect your machine to.");
-    if (!transport.session().hand) config.note("tool", "This session started before machines could connect; type /new for one that can.");
-  };
-
-  const handCommands = () => {
-    const { id, hand } = transport.session();
-    if (!hydrated || !id || !hand) return undefined;
-    const chatUrl = new URL(href("/api/chat"), location.href);
-    const socket = `${chatUrl.origin.replace(/^http/, "ws")}${chatUrl.pathname}?sessionId=${id}`;
-    const install = "https://nanocode.xyz/install";
-    return { command: `curl -fsSL ${install} | sh -s -- hand '${socket}' --token ${hand}`, short: `nc hand '${socket}' --token ${hand}` };
-  };
-
   const command = (text: string): boolean => {
     const [name, ...words] = text.split(/\s+/);
     const argument = words.join(" ").toLowerCase();
@@ -196,7 +165,7 @@ function Agent(props: Props & { setup: Setup }) {
       return true;
     }
     if (name === "/hand") {
-      void connect();
+      hand.show();
       return true;
     }
     if (name === "/model") {
@@ -238,8 +207,7 @@ function Agent(props: Props & { setup: Setup }) {
 
   const harness = harnesses.find(entry => entry.id === selection.provider) ?? harnesses[0];
   const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
-  const commands = handCommands();
-  const machine = connected ? ` · on ${machines.map(name => name ?? "your machine").join(", ")}` : "";
+  const machine = hand.hands.length ? ` · on ${hand.hands.map(name => name ?? "your machine").join(", ")}` : "";
 
   return (
     <View
@@ -250,12 +218,7 @@ function Agent(props: Props & { setup: Setup }) {
       commands={[...COMMANDS, ...unlock.commands]}
       empty="Ask a question to start a turn, or type /model to choose a model."
       extras={<>
-        {handOpen && commands ? <Hand command={commands.command} hands={machines} onClose={() => setHandOpen(false)} short={commands.short} /> : (
-        <p {...styles.row()}>
-          <span aria-hidden="true" {...styles.chevron()}>❯</span>
-          <button onClick={() => void connect()} type="button" {...styles.suggestion()}>{connected ? `running on ${machines.map(name => name ?? "your machine").join(", ")} · show the command` : "Run this session on your own machine with nc →"}</button>
-        </p>
-        )}
+        <HandConnect hand={hand} />
         <Unlock machine={unlock} />
         <Prompts machine={unlock} />
         {needsToken && (
