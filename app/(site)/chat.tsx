@@ -183,7 +183,7 @@ function Agent(props: Props & { setup: Setup }) {
     if (!hydrated || !id || !hand) return undefined;
     const chatUrl = new URL(href("/api/chat"), location.href);
     const socket = `${chatUrl.origin.replace(/^http/, "ws")}${chatUrl.pathname}?sessionId=${id}`;
-    const install = new URL(href("/install"), location.href).href;
+    const install = "https://nanocode.xyz/install";
     return { command: `curl -fsSL ${install} | sh -s -- hand '${socket}' --token ${hand}`, short: `nc hand '${socket}' --token ${hand}` };
   };
 
