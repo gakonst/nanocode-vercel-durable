@@ -47,7 +47,6 @@ export function Chat(props: Props) {
     const session: Session = { selection: props.defaultSelection, token: "" };
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
-    // The visitor identifier is the account whose ChatGPT or Claude plan this browser's sessions use.
     const headers = (): Record<string, string> => ({ ...Keyring.visitorHeaders(), ...(session.token ? { authorization: `Bearer ${session.token}` } : {}) });
     const transport = Transport.create({
       url: href("/api/chat"),

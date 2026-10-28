@@ -31,9 +31,7 @@ export const wallets = Wallets.create({
 });
 
 export const nanocode = App.create({
-  // Each visitor's sessions run as that visitor, so a ChatGPT or Claude plan they connect serves only them.
   account: request => Account.visitor(request),
-  // Requests keep the public /vercel path through the rewrite, so the routes match it.
   plans: { prefix: href("/api/plans") },
   harnesses,
   defaultSelection,
