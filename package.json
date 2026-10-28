@@ -20,7 +20,7 @@
     "@vercel/functions": "3.10.4",
     "@vercel/oidc": "3.2.0",
     "durable-harness": "0.0.1-beta.6",
-    "nanocode-ts": "github:gakonst/nanocode-ts#b3eab507fc8f43d37142ec18bfc9862a928ed210",
+    "nanocode-ts": "github:gakonst/nanocode-ts#a36e04f26fee32a4c24019b724d622be1eed9371",
     "next": "16.4.2",
     "pyodide": "314.0.7",
     "react": "19.3.1",
