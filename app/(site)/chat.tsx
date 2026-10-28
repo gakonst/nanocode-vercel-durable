@@ -1,9 +1,9 @@
 "use client";
 
-import { Config, Pickers } from "nanocode-ts/client";
+import { Config, Pickers, Plans } from "nanocode-ts/client";
 import { Keyring, Wallet } from "nanocode-ts/machines";
 import { Prompts, Unlock, useUnlock, walletCards } from "nanocode-ts/machines/react";
-import { Chat as View, HandConnect, NanocodeProvider, type Picker, useConfig, useConversations, useHand, useSend } from "nanocode-ts/react";
+import { Chat as View, HandConnect, NanocodeProvider, type Picker, PlanConnect, useConfig, useConversations, useHand, usePlans, useSend } from "nanocode-ts/react";
 import { skin, styles } from "nanocode-ts/react/skin";
 import * as Transport from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
@@ -40,14 +40,15 @@ function save(next: Partial<Saved>) {
 
 type Session = { selection: Selection; token: string };
 
-type Setup = { session: Session; transport: Transport.Transport; keyring: Keyring.Keyring; subscribe(listener: () => void): () => void; changed(): void };
+type Setup = { session: Session; transport: Transport.Transport; keyring: Keyring.Keyring; plans: Plans.Client; subscribe(listener: () => void): () => void; changed(): void };
 
 export function Chat(props: Props) {
   const [setup] = useState(() => {
     const session: Session = { selection: props.defaultSelection, token: "" };
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
-    const headers = (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {};
+    // The visitor identifier is the account whose ChatGPT or Claude plan this browser's sessions use.
+    const headers = (): Record<string, string> => ({ ...Keyring.visitorHeaders(), ...(session.token ? { authorization: `Bearer ${session.token}` } : {}) });
     const transport = Transport.create({
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
@@ -74,7 +75,8 @@ export function Chat(props: Props) {
       const id = await transport.open();
       return id ? { sessionId: id } : undefined;
     } });
-    return { config, session, transport, keyring, changed, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
+    const plans = Plans.create({ url: href("/api/plans"), headers });
+    return { config, session, transport, keyring, plans, changed, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
   });
 
   return (
@@ -97,6 +99,7 @@ function Agent(props: Props & { setup: Setup }) {
   const started = useRef(false);
   const unlock = useUnlock(setup.keyring);
   const hand = useHand(transport);
+  const plans = usePlans(setup.plans);
   const sessionId = hydrated ? transport.session().id : undefined;
 
   useEffect(() => hand.reset(), [sessionId]);
@@ -218,6 +221,7 @@ function Agent(props: Props & { setup: Setup }) {
       commands={[...COMMANDS, ...unlock.commands]}
       empty="Ask a question to start a turn, or type /model to choose a model."
       extras={<>
+        <PlanConnect plans={plans} />
         <HandConnect hand={hand} />
         <Unlock machine={unlock} />
         <Prompts machine={unlock} />
@@ -244,7 +248,7 @@ function Agent(props: Props & { setup: Setup }) {
       onPickerClose={() => setPicker(null)}
       onSubmit={text => { if (unlock.handles(text)) void unlock.command(text); else if (!command(text)) void send(text); }}
       picker={picker}
-      status={`${harness.label} · ${modelLabel} · ${selection.thinking} · ${(hydrated && transport.session().id) || "new session"}${machine} · ${busy ? "running" : "idle"}`}
+      status={`${harness.label}${plans.status?.[selection.provider].state === "authenticated" && Plans.serves(selection.provider, selection.model) ? " plan" : ""} · ${modelLabel} · ${selection.thinking} · ${(hydrated && transport.session().id) || "new session"}${machine} · ${busy ? "running" : "idle"}`}
       suggestions={[...prompts.map(prompt => ({ label: prompt, onClick: () => void send(prompt), disabled: busy })), ...(chaos ? [{ label: "Kill the next tool call", onClick: () => void crash(), disabled: !transport.session().id }] : [])]}
     />
   );

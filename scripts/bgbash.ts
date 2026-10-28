@@ -50,7 +50,7 @@ const dispatch: Dispatch = async request => {
 
 const [{ durableAgent, getWorld, isSettled }, nanocode] = await Promise.all([import("durable-harness"), import("nanocode-ts/vercel")]);
 const agent = durableAgent({
-  harness: nanocode.Harness.create({ name: "nanocode-bgbash", provider: "claude", model: "claude-haiku-5-5", endpoint: nanocode.Gateway.endpoint("claude"), durability: "on", dispatch, codeMode: mode === "cell" }),
+  harness: nanocode.Harness.create({ name: "nanocode-bgbash", provider: "claude", model: "claude-haiku-5-5", endpoint: nanocode.Gateway.endpoint("claude"), durability: "on", dispatch }),
   durability: "on",
   directDriveMs: 280_000,
 });

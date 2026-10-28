@@ -44,7 +44,6 @@ const agent = durableAgent({
     gateway: "vercel",
     durability: "on",
     dispatch,
-    codeMode: true,
     report: report => drives.push(report),
   }),
   durability: "on",
