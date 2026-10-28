@@ -1,11 +1,11 @@
 "use client";
 
-import { createConfig, modelItems, thinkingItems } from "nanocode-ts/client";
+import { Config, Pickers } from "nanocode-ts/client";
 import { Keyring, Wallet } from "nanocode-ts/machines";
 import { Prompts, Unlock, useUnlock, walletCards } from "nanocode-ts/machines/react";
 import { Chat as View, HandConnect, NanocodeProvider, type Picker, useConfig, useConversations, useHand, useSend } from "nanocode-ts/react";
 import { skin, styles } from "nanocode-ts/react/skin";
-import { vercel, type VercelTransport } from "nanocode-ts/vercel/transport";
+import * as Transport from "nanocode-ts/vercel/transport";
 import { useEffect, useRef, useState } from "react";
 import { href } from "@/lib/base";
 import { prompts } from "../_clones/prompts";
@@ -40,7 +40,7 @@ function save(next: Partial<Saved>) {
 
 type Session = { selection: Selection; token: string };
 
-type Setup = { session: Session; transport: VercelTransport; keyring: Keyring.Keyring; subscribe(listener: () => void): () => void; changed(): void };
+type Setup = { session: Session; transport: Transport.Transport; keyring: Keyring.Keyring; subscribe(listener: () => void): () => void; changed(): void };
 
 export function Chat(props: Props) {
   const [setup] = useState(() => {
@@ -48,7 +48,7 @@ export function Chat(props: Props) {
     const listeners = new Set<() => void>();
     const changed = () => { for (const listener of listeners) listener(); };
     const headers = (): Record<string, string> => session.token ? { authorization: `Bearer ${session.token}` } : {};
-    const transport = vercel({
+    const transport = Transport.create({
       url: href("/api/chat"),
       chaosUrl: href("/api/chaos"),
       headers,
@@ -56,7 +56,7 @@ export function Chat(props: Props) {
       session: { load: () => ({}), save: () => changed() },
       hands: true,
     });
-    const config = createConfig({
+    const config = Config.create({
       history: { key: KEY },
       apply: event => {
         if (event.type === "chaos") config.note("tool", event.reannounced ? "A new Function took the turn over and replays it from the log." : `The Function died during ${typeof event.effect === "string" ? event.effect : "a step"}.`);
@@ -70,7 +70,7 @@ export function Chat(props: Props) {
       transport,
     });
     Wallet.configure({ name: "nanocode on Vercel", relay: href("/api/device/"), websiteUrl: "https://nanocode.xyz/vercel/" });
-    const keyring = Keyring.keyring({ url: href("/api/keys"), headers, scope: async () => {
+    const keyring = Keyring.create({ url: href("/api/keys"), headers, scope: async () => {
       const id = await transport.open();
       return id ? { sessionId: id } : undefined;
     } });
@@ -124,7 +124,7 @@ function Agent(props: Props & { setup: Setup }) {
 
   const pickThinking = (model: string) => setPicker({
     title: `Thinking · ${model}`,
-    items: () => thinkingItems(find(model), model === session.selection.model ? session.selection.thinking : undefined),
+    items: () => Pickers.thinking(find(model), { thinking: model === session.selection.model ? session.selection.thinking : undefined }),
     onChoose: item => {
       setPicker(null);
       think(model, item.label as Thinking);
@@ -170,7 +170,7 @@ function Agent(props: Props & { setup: Setup }) {
     }
     if (name === "/model") {
       if (!argument) {
-        setPicker({ title: "Model", filter: true, items: query => modelItems(harnesses, session.selection.model, query), onChoose: item => pick(item.label) });
+        setPicker({ title: "Model", filter: true, items: query => Pickers.models(harnesses, { model: session.selection.model, query }), onChoose: item => pick(item.label) });
         return true;
       }
       const match = harnesses.flatMap(entry => entry.models).find(model => argument.split(" ").every(word => `${model.id} ${model.name}`.toLowerCase().includes(word)));

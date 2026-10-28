@@ -1,7 +1,7 @@
 import type { HostTool } from "durable-harness";
 import { upgradeWebSocket } from "@vercel/functions";
-import { createWallets } from "nanocode-ts/machines/vercel";
-import { createNanocode } from "nanocode-ts/vercel";
+import { Wallets } from "nanocode-ts/machines/vercel";
+import { App } from "nanocode-ts/vercel";
 import { defaultSelection, harnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
@@ -17,7 +17,7 @@ const authorize = (request: Request) => {
   if (token && request.headers.get("authorization") !== `Bearer ${token}`) throw new Response("unauthorized", { status: 401 });
 };
 
-export const wallets = createWallets({
+export const wallets = Wallets.create({
   sessions: () => nanocode.agent.sessions,
   secret: process.env.KEY_SECRET,
   authorize: request => {
@@ -28,7 +28,7 @@ export const wallets = createWallets({
   ...(process.env.TEMPO_RPC ? { rpc: process.env.TEMPO_RPC } : {}),
 });
 
-export const nanocode = createNanocode({
+export const nanocode = App.create({
   harnesses,
   defaultSelection,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),

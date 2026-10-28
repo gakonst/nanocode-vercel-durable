@@ -1,6 +1,6 @@
 import { getWorld, isSettled } from "durable-harness";
 import { agent } from "../lib/agent.ts";
-import { committedBatches, isIdle, openReader } from "nanocode-ts/vercel";
+import { Harness, Journal, Reader } from "nanocode-ts/vercel";
 
 const args = process.argv.slice(2);
 const resumed = args[0]?.startsWith("wrun_") ? args.shift() : undefined;
@@ -31,9 +31,9 @@ try {
   for (;;) {
     const state = await agent.sessions.inspect(sessionId);
     if (state.status === "failed") throw new Error(`the session failed: ${state.failure?.message}`);
-    const batches = committedBatches(state).length;
-    if (batches > 0 && isSettled(state, submission) && isIdle(state, batches)) {
-      const reader = await openReader(state);
+    const batches = Journal.committed(state).length;
+    if (batches > 0 && isSettled(state, submission) && Harness.isIdle(state, { batches: batches })) {
+      const reader = await Reader.open(state);
       const last = state.submissions.findLast(entry => entry.kind === "prompt");
       const turn = last ? await reader.turn(last.id) : null;
       await reader.close();

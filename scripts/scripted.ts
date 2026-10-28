@@ -1,5 +1,7 @@
 import { appendFileSync } from "node:fs";
-import type { Dispatch } from "nanocode-ts/vercel";
+import type { Gateway } from "nanocode-ts/vercel";
+
+type Dispatch = Gateway.Dispatch;
 
 export type ScriptedRequest = {
   provider: "claude" | "codex";

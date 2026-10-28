@@ -1,6 +1,8 @@
 import { appendFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import type { Dispatch } from "nanocode-ts/vercel";
+import type { Gateway } from "nanocode-ts/vercel";
+
+type Dispatch = Gateway.Dispatch;
 
 const calls = Number(process.argv[2] ?? 100000);
 const dir = resolve("output", "wasmcalls-" + calls);
@@ -34,11 +36,11 @@ const dispatch: Dispatch = async request => {
 const [{ durableAgent, getWorld, isSettled }, nanocode] = await Promise.all([import("durable-harness"), import("nanocode-ts/vercel")]);
 const drives: unknown[] = [];
 const agent = durableAgent({
-  harness: nanocode.nanocodeHarness({
+  harness: nanocode.Harness.create({
     name: "nanocode-wasmcalls",
     provider: "codex",
     model: "gpt-6-luna",
-    endpoint: nanocode.gatewayEndpoint("codex"),
+    endpoint: nanocode.Gateway.endpoint("codex"),
     gateway: "vercel",
     durability: "on",
     dispatch,
@@ -56,17 +58,17 @@ let state;
 for (;;) {
   state = await agent.sessions.inspect(sessionId);
   if (state.status === "failed") break;
-  const batches = nanocode.committedBatches(state).length;
-  if (batches > 0 && isSettled(state, submission) && nanocode.isIdle(state, batches)) break;
+  const batches = nanocode.Journal.committed(state).length;
+  if (batches > 0 && isSettled(state, submission) && nanocode.Harness.isIdle(state, { batches: batches })) break;
   await new Promise(done => setTimeout(done, 200));
 }
-const reader = await nanocode.openReader(state);
+const reader = await nanocode.Reader.open(state);
 const page = await reader.page(0, 1_000_000);
 const turn = await reader.turn(submission);
 await reader.close();
 const types: Record<string, number> = {};
 for (const event of page.events as { event?: { event?: { type?: string } } }[]) { const type = String((event as any).event?.event?.type ?? (event as any).event?.type); types[type] = (types[type] ?? 0) + 1; }
-const batches = nanocode.committedBatches(state);
+const batches = nanocode.Journal.committed(state);
 console.log(JSON.stringify({ calls, status: state.status, failure: state.failure?.message, ms: Math.round(performance.now() - started), world_events: state.eventCount, steps: state.effectOrder.length, sql_batches: batches.length, sql_transactions: batches.flat().length, sql_bytes: JSON.stringify(batches).length, nanocode_events: page.events.length, event_types: types, result: JSON.stringify((turn as any)?.report?.ok ?? (turn as any)?.report).slice(0, 300), drives: drives.map((d: any) => ({ outcome: d.outcome, ms: Math.round(d.duration_ms), journal: d.journal })) }, null, 1));
 await world.close?.();
 process.exit(0);

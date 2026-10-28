@@ -2,7 +2,9 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Durability } from "nanocode-ts/vercel";
+import type { Journal } from "nanocode-ts/vercel";
+
+type Durability = Journal.Durability;
 import type { ScriptedRequest } from "./scripted.ts";
 
 type Provider = "claude" | "codex";
@@ -39,11 +41,11 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
     import("../lib/agent.ts"),
   ]);
   const agent = durableAgent({
-    harness: nanocode.nanocodeHarness({
+    harness: nanocode.Harness.create({
       name: "nanocode-drill",
       provider,
       model: MODELS[provider],
-      endpoint: nanocode.gatewayEndpoint(provider),
+      endpoint: nanocode.Gateway.endpoint(provider),
       ...(provider === "codex" ? { gateway: "vercel" as const } : {}),
       durability,
       dispatch: scriptedDispatch(provider, files.requests),
@@ -65,8 +67,8 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
     for (;;) {
       const state = await agent.sessions.inspect(sessionId);
       if (state.status === "failed") throw new Error(`the session failed: ${state.failure?.message}`);
-      const batches = nanocode.committedBatches(state).length;
-      if (batches > 0 && isSettled(state, submission) && nanocode.isIdle(state, batches)) return state;
+      const batches = nanocode.Journal.committed(state).length;
+      if (batches > 0 && isSettled(state, submission) && nanocode.Harness.isIdle(state, { batches: batches })) return state;
       await sleep(50);
     }
   };
@@ -78,15 +80,15 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   const submission = await agent.sessions.send(sessionId, PROMPTS.workspace);
   const state = await settled(submission);
   const turn_ms = performance.now() - sentAt;
-  const reader = await nanocode.openReader(state);
+  const reader = await nanocode.Reader.open(state);
   const turns = [];
   for (const placed of state.submissions.filter(entry => entry.kind === "prompt")) turns.push({ submission: placed.id, text: placed.text, turn: await reader.turn(placed.id) });
   const page = await reader.page(0, 1000);
   await reader.close();
   const operations: Record<string, number> = {};
-  for (const transaction of nanocode.committedBatches(state).flat()) operations[`${transaction.kind}.${transaction.operation}`] = (operations[`${transaction.kind}.${transaction.operation}`] ?? 0) + 1;
+  for (const transaction of nanocode.Journal.committed(state).flat()) operations[`${transaction.kind}.${transaction.operation}`] = (operations[`${transaction.kind}.${transaction.operation}`] ?? 0) + 1;
   const effects = state.effectOrder.map(effect => ({ key: effect.key, name: effect.name, status: effect.status, attempt: effect.attempt, ...(effect.error?.interrupted ? { interrupted: true } : {}) }));
-  process.stdout.write(`${JSON.stringify({ sessionId, recovery_ms, turn_ms, events_after_recovery: recoveredEvents, events: state.eventCount, sql_batches: nanocode.committedBatches(state).length, sql_transactions: nanocode.committedBatches(state).flat().length, sql_operations: operations, nanocode_events: page.events.length, effects, turns })}\n`);
+  process.stdout.write(`${JSON.stringify({ sessionId, recovery_ms, turn_ms, events_after_recovery: recoveredEvents, events: state.eventCount, sql_batches: nanocode.Journal.committed(state).length, sql_transactions: nanocode.Journal.committed(state).flat().length, sql_operations: operations, nanocode_events: page.events.length, effects, turns })}\n`);
   await world.close?.();
   process.exit(0);
 }

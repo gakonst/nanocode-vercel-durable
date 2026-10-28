@@ -1,6 +1,8 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import type { Dispatch } from "nanocode-ts/vercel";
+import type { Gateway } from "nanocode-ts/vercel";
+
+type Dispatch = Gateway.Dispatch;
 
 const mode = process.argv[2] ?? "direct";
 const dir = resolve("output", "bgbash-" + mode);
@@ -48,7 +50,7 @@ const dispatch: Dispatch = async request => {
 
 const [{ durableAgent, getWorld, isSettled }, nanocode] = await Promise.all([import("durable-harness"), import("nanocode-ts/vercel")]);
 const agent = durableAgent({
-  harness: nanocode.nanocodeHarness({ name: "nanocode-bgbash", provider: "claude", model: "claude-haiku-5-5", endpoint: nanocode.gatewayEndpoint("claude"), durability: "on", dispatch, codeMode: mode === "cell" }),
+  harness: nanocode.Harness.create({ name: "nanocode-bgbash", provider: "claude", model: "claude-haiku-5-5", endpoint: nanocode.Gateway.endpoint("claude"), durability: "on", dispatch, codeMode: mode === "cell" }),
   durability: "on",
   directDriveMs: 280_000,
 });
@@ -60,8 +62,8 @@ let state;
 for (;;) {
   state = await agent.sessions.inspect(sessionId);
   if (state.status === "failed") break;
-  const batches = nanocode.committedBatches(state).length;
-  if (batches > 0 && isSettled(state, submission) && nanocode.isIdle(state, batches)) break;
+  const batches = nanocode.Journal.committed(state).length;
+  if (batches > 0 && isSettled(state, submission) && nanocode.Harness.isIdle(state, { batches: batches })) break;
   await new Promise(done => setTimeout(done, 200));
 }
 console.log(JSON.stringify({ mode, ms: Math.round(performance.now() - started), status: state.status, failure: state.failure?.message, transcript }, null, 1));

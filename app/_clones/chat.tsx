@@ -1,7 +1,7 @@
 "use client";
 
-import { createConfig } from "nanocode-ts/client";
-import { vercel } from "nanocode-ts/vercel/transport";
+import { Config } from "nanocode-ts/client";
+import * as Transport from "nanocode-ts/vercel/transport";
 import { useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
@@ -44,7 +44,7 @@ export function createClone(key: string, harness: "claude" | "codex") {
     return token ? { authorization: "Bearer " + token } : {};
   };
 
-  const transport = vercel({
+  const transport = Transport.create({
     headers,
     selection: () => {
       const model = current();
@@ -62,12 +62,12 @@ export function createClone(key: string, harness: "claude" | "codex") {
     url: href("/api/chat"),
   });
 
-  track(Keyring.keyring({ url: href("/api/keys"), headers, scope: async () => {
+  track(Keyring.create({ url: href("/api/keys"), headers, scope: async () => {
     const id = await transport.open();
     return id ? { sessionId: id } : undefined;
   } }));
 
-  const config = createConfig({ history: { key }, transport });
+  const config = Config.create({ history: { key }, transport });
 
   const choose = (id: string) => {
     const conversation = config.getState().conversation;

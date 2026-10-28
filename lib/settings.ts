@@ -1,6 +1,10 @@
-import type { ModelProvider } from "nanocode-ts";
+import type { Contracts } from "nanocode-ts";
 import { models } from "nanocode-ts/models";
-import type { ServiceTier, Thinking } from "nanocode-ts/vercel";
+import type { Harness } from "nanocode-ts/vercel";
+
+type ModelProvider = Contracts.ModelProvider;
+type ServiceTier = Harness.ServiceTier;
+type Thinking = Harness.Thinking;
 
 export type { Thinking };
 

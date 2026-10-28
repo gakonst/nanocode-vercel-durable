@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 
 Wallet.configure({ name: "nanocode on Vercel", relay: "api/device/", websiteUrl: "https://nanocode.xyz/vercel/" });
 
-type State = { connected?: Wallet.Wallet; busy: boolean; error?: string; device?: Wallet.Prompt };
+type State = { connected?: Wallet.AccessKey; busy: boolean; error?: string; device?: Wallet.Prompt };
 
 let state: State = { busy: false };
 const listeners = new Set<() => void>();
@@ -25,7 +25,7 @@ export async function ensure() {
   if (connected) await Promise.all([...keyrings].map(keyring => keyring.register(connected).catch(() => {})));
 }
 
-function use(connected: Wallet.Wallet | undefined) {
+function use(connected: Wallet.AccessKey | undefined) {
   set({ connected });
   void ensure();
 }
