@@ -209,7 +209,7 @@ function Agent(props: Props & { setup: Setup }) {
 
   const harness = harnesses.find(entry => entry.id === selection.provider) ?? harnesses[0];
   const modelLabel = harness.models.find(entry => entry.id === selection.model)?.label ?? selection.model;
-  const machine = hand.hands.length ? ` · on ${hand.hands.map(name => name ?? "your machine").join(", ")}` : "";
+  const machine = hand.where ? ` · ${hand.where}` : "";
 
   return (
     <View
