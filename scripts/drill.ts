@@ -43,6 +43,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   const agent = durableAgent({
     harness: nanocode.Harness.create({
       name: "nanocode-drill",
+      codeMode: false,
       provider,
       model: MODELS[provider],
       endpoint: nanocode.Gateway.endpoint(provider),
