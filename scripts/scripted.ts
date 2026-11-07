@@ -22,7 +22,12 @@ const NOTE = "echo durable > /workspace/note.txt && cat /workspace/note.txt";
 
 const WORKSPACE = { claude: { name: "Bash", input: { command: NOTE } }, codex: { name: "exec_command", input: { cmd: NOTE } } };
 
+export const WAIT_MS = 3000;
+
+const WAITING = { name: "exec", input: { code: `await new Promise(resolve => setTimeout(resolve, ${WAIT_MS})); text(await tools.charge({ amount: 7, memo: "after the wait" }));` } };
+
 function plan(prompt: string | undefined, provider: "claude" | "codex") {
+  if (prompt?.includes("wait")) return WAITING;
   if (prompt?.includes("charge")) return CHARGE;
   if (prompt?.includes("workspace")) return WORKSPACE[provider];
   return undefined;
@@ -62,14 +67,16 @@ export function scriptedDispatch(provider: "claude" | "codex", log: string): Dis
     }
     const items = body.input as { type: string; role?: string; content?: unknown; output?: unknown }[];
     const user = items.findLastIndex(item => item.type === "message" && item.role === "user");
-    const result = items.find((item, index) => index > user && item.type === "function_call_output");
+    const result = items.find((item, index) => index > user && (item.type === "function_call_output" || item.type === "custom_tool_call_output"));
     const prompt = user >= 0 ? text(items[user].content) : undefined;
     const tool = result ? undefined : plan(prompt, provider);
     const answer = result ? `The tool answered: ${text(result.output)}` : tool ? `function_call ${tool.name}` : "ok";
     const offered = (body.tools ?? items.flatMap(item => item.type === "additional_tools" ? (item as unknown as { tools: { name?: string }[] }).tools : [])).map((tool: { name?: string }) => tool.name ?? "");
     record({ items: items.length, tools: offered, ...(prompt !== undefined ? { prompt } : {}), ...(result ? { tool_result: text(result.output) } : {}), answer });
     const id = `resp_${call}`;
-    const item = tool
+    const item = tool?.name === "exec"
+      ? { type: "custom_tool_call", id: `ctc_${call}`, call_id: `call_${call}`, name: "exec", input: (tool.input as { code: string }).code, status: "completed" }
+      : tool
       ? { type: "function_call", id: `fc_${call}`, call_id: `call_${call}`, name: tool.name, arguments: JSON.stringify(tool.input), status: "completed" }
       : { type: "message", id: `msg_${call}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: answer }] };
     return sse([

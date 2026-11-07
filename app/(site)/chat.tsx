@@ -15,7 +15,7 @@ type Harness = { id: Selection["provider"]; label: string; models: Model[] };
 
 type Saved = { selection?: Selection };
 
-type Props = { chaos: boolean; defaultSelection: Selection; harnesses: Harness[]; needsToken: boolean; suggestions: string[] };
+type Props = { chaos: boolean; defaultSelection: Selection; harnesses: Harness[]; needsToken: boolean };
 
 const COMMANDS = [
   { label: "/model", detail: "choose harness, model and thinking for a new session" },
@@ -86,7 +86,7 @@ export function Chat(props: Props) {
 }
 
 function Agent(props: Props & { setup: Setup }) {
-  const { chaos, harnesses, needsToken, setup, suggestions } = props;
+  const { chaos, harnesses, needsToken, setup } = props;
   const { session, transport } = setup;
   const config = useConfig();
   const { send, isPending: busy } = useSend();

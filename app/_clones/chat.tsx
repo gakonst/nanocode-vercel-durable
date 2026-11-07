@@ -6,7 +6,7 @@ import { useState, useSyncExternalStore } from "react";
 import { href } from "@/lib/base";
 import { harnesses, type Model } from "@/lib/settings";
 import { Keyring } from "nanocode-ts/machines";
-import { ensure, track } from "./account";
+import { track } from "./account";
 
 type Saved = { picked?: string; bound: Record<string, string> };
 

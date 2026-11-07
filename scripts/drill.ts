@@ -9,7 +9,13 @@ import type { ScriptedRequest } from "./scripted.ts";
 
 type Provider = "claude" | "codex";
 
-const PROMPTS = { charge: "Please charge $42 for order 1001.", workspace: "Use the workspace to write a note and read it back." };
+type Scenario = "charge" | "waiting";
+
+const PROMPTS = { charge: "Please charge $42 for order 1001.", waiting: "Please wait three seconds, then charge $7.", workspace: "Use the workspace to write a note and read it back." };
+
+const UNKNOWN = /outcome (is )?unknown|interrupted by a host crash/;
+
+const KILL_INTO_WAIT_MS = 1000;
 
 const MODELS: Record<Provider, string> = { claude: "claude-haiku-5-5", codex: "gpt-6-luna" };
 
@@ -27,10 +33,10 @@ const lines = <T>(path: string): T[] => {
 };
 
 const args = process.argv.slice(2);
-if (args[0] === "child") await child(args[1] as "start" | "resume", args[2] as Provider, args[3] as Durability, args[4], args[5]);
-else await orchestrate((args[0] ?? "claude,codex").split(",") as Provider[], (args[1] ?? "on,strict").split(",") as Durability[]);
+if (args[0] === "child") await child(args[1] as "start" | "resume", args[2] as Scenario, args[3] as Provider, args[4] as Durability, args[5], args[6]);
+else await orchestrate((args[0] ?? "claude,codex").split(",") as Provider[], (args[1] ?? "on,strict").split(",") as Durability[], (args[2] ?? "charge,waiting").split(",") as Scenario[]);
 
-async function child(phase: "start" | "resume", provider: Provider, durability: Durability, dir: string, resumed?: string): Promise<void> {
+async function child(phase: "start" | "resume", scenario: Scenario, provider: Provider, durability: Durability, dir: string, resumed?: string): Promise<void> {
   const files = paths(dir);
   process.env.WORKFLOW_LOCAL_DATA_DIR = files.data;
   process.env.CHARGE_CONFIRM_MS = String(CHARGE_CONFIRM_MS);
@@ -43,7 +49,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   const agent = durableAgent({
     harness: nanocode.Harness.create({
       name: "nanocode-drill",
-      codeMode: false,
+      codeMode: scenario === "waiting",
       provider,
       model: MODELS[provider],
       endpoint: nanocode.Gateway.endpoint(provider),
@@ -60,7 +66,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   if (phase === "start") {
     const { sessionId } = await agent.sessions.start();
     process.stdout.write(`${JSON.stringify({ sessionId })}\n`);
-    await agent.sessions.send(sessionId, PROMPTS.charge);
+    await agent.sessions.send(sessionId, PROMPTS[scenario]);
     await new Promise(() => undefined);
   }
   const sessionId = resumed!;
@@ -78,8 +84,7 @@ async function child(phase: "start" | "resume", provider: Provider, durability: 
   const recovery_ms = performance.now() - resumedAt;
   const recoveredEvents = recovered.eventCount;
   const sentAt = performance.now();
-  const submission = await agent.sessions.send(sessionId, PROMPTS.workspace);
-  const state = await settled(submission);
+  const state = scenario === "charge" ? await settled(await agent.sessions.send(sessionId, PROMPTS.workspace)) : recovered;
   const turn_ms = performance.now() - sentAt;
   const reader = await nanocode.Reader.open(state);
   const turns = [];
@@ -118,28 +123,51 @@ function check(condition: unknown, message: string): void {
   if (!condition) throw new Error(`drill: ${message}`);
 }
 
-async function orchestrate(providers: Provider[], durabilities: Durability[]): Promise<void> {
+async function orchestrate(providers: Provider[], durabilities: Durability[], scenarios: Scenario[]): Promise<void> {
   const results = [];
-  for (const provider of providers) for (const durability of durabilities) {
-    const dir = resolve("output", `drill-${provider}-${durability}`);
+  const failures: string[] = [];
+  for (const scenario of scenarios) for (const provider of providers) for (const durability of durabilities) {
+    const dir = resolve("output", scenario === "charge" ? `drill-${provider}-${durability}` : `drill-${scenario}-${provider}-${durability}`);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     const files = paths(dir);
     const startedAt = performance.now();
-    const first = launch(["start", provider, durability, dir]);
+    const first = launch(["start", scenario, provider, durability, dir]);
     const { sessionId } = JSON.parse(await firstLine(first)) as { sessionId: string };
-    while (lines(files.ledger).length === 0) await sleep(10);
+    if (scenario === "charge") {
+      while (lines(files.ledger).length === 0) await sleep(10);
+    } else {
+      while (lines(files.requests).length === 0) await sleep(10);
+    }
     const charged_ms = performance.now() - startedAt;
-    await sleep(KILL_AFTER_CHARGE_MS);
+    await sleep(scenario === "charge" ? KILL_AFTER_CHARGE_MS : KILL_INTO_WAIT_MS);
     first.kill("SIGKILL");
     await exited(first);
-    const second = launch(["resume", provider, durability, dir, sessionId]);
+    const second = launch(["resume", scenario, provider, durability, dir, sessionId]);
     const summary = JSON.parse(await firstLine(second));
     await exited(second);
     const requests = lines<ScriptedRequest>(files.requests);
     const killed = requests.filter(request => request.pid === first.pid);
     const after = requests.filter(request => request.pid === second.pid);
     const charges = lines(files.ledger);
+    if (scenario === "waiting") {
+      const answered = after.find(request => request.tool_result !== undefined)?.tool_result ?? "";
+      const status = summary.turns[0]?.turn?.report.status;
+      const found = [
+        killed.length !== 1 && `the killed drive made ${killed.length} model requests`,
+        after[0]?.tool_result === undefined && "the recovered drive asked the model for the cell again, so the cell's model receipt was lost",
+        charges.length !== 1 && `${charges.length} charges in the ledger`,
+        status !== "completed" && `the turn ended ${status}`,
+        UNKNOWN.test(answered) && `the cell had made no tool call when the drive was killed, yet the model was told: ${answered.slice(0, 200)}`,
+        !answered.includes("charged $7.00") && "the model never got the charge's result",
+      ].filter((failure): failure is string => typeof failure === "string").map(failure => `waiting ${provider} ${durability}: ${failure}`);
+      failures.push(...found);
+      const result = { scenario, provider, durability, node: process.version, measured_at: new Date().toISOString(), session: sessionId, killed_ms: charged_ms + KILL_INTO_WAIT_MS, recovery_ms: summary.recovery_ms, charges: charges.length, tool_result_after_crash: answered, turn: summary.turns[0]?.turn?.report, failures: found };
+      writeFileSync(join(dir, "report.json"), `${JSON.stringify({ ...result, effects: summary.effects, requests }, null, 2)}\n`);
+      results.push(result);
+      continue;
+    }
+    try {
     const [chargeTurn, workspaceTurn] = summary.turns;
     const chargeStep = summary.effects.find((effect: { name: string }) => effect.name === "tool.charge");
     check(charges.length === 1, `${charges.length} charges in the ledger`);
@@ -177,6 +205,13 @@ async function orchestrate(providers: Provider[], durabilities: Durability[]): P
     };
     writeFileSync(join(dir, "report.json"), `${JSON.stringify({ ...result, effects: summary.effects, requests }, null, 2)}\n`);
     results.push(result);
+    } catch (error) {
+      failures.push(`charge ${provider} ${durability}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   console.log(JSON.stringify(results, null, 2));
+  if (failures.length) {
+    console.error(failures.join("\n"));
+    process.exitCode = 1;
+  }
 }
