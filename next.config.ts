@@ -11,7 +11,14 @@ const config: NextConfig = {
   outputFileTracingIncludes: { "/**": ["./node_modules/pyodide/**"] },
   serverExternalPackages: ["pyodide"],
   redirects: async () => [{ destination: basePath, permanent: false, source: "/" }],
-  rewrites: async () => [{ destination: "/", source: basePath }, { destination: "/:path*", source: `${basePath}/:path*` }],
+  rewrites: async () => [
+    { destination: "/chatgpt", missing: [{ key: "theme", type: "query" }], source: basePath },
+    { destination: "/chatgpt", has: [{ key: "theme", type: "query", value: "codex" }], source: basePath },
+    { destination: "/claude", has: [{ key: "theme", type: "query", value: "claude" }], source: basePath },
+    { destination: "/", has: [{ key: "theme", type: "query", value: "nanocode" }], source: basePath },
+    { destination: "/themes/unknown", has: [{ key: "theme", type: "query" }], source: basePath },
+    { destination: "/:path*", source: `${basePath}/:path*` },
+  ],
 };
 
 export default zyzz(withDurableHarness(config, { agents: ["lib/agent.ts"] }));
