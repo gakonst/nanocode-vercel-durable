@@ -1,4 +1,5 @@
 import type { Contracts } from "nanocode-ts";
+import { Plans } from "nanocode-ts/client";
 import { models } from "nanocode-ts/models";
 import type { Harness } from "nanocode-ts/vercel";
 
@@ -21,6 +22,24 @@ function catalog(harness: ModelProvider, id: string, label: string, detail: stri
 export const harnesses: { id: ModelProvider; label: string; models: Model[] }[] = [
   { id: "claude", label: "Claude", models: [catalog("claude", "claude-haiku-5-5", "Haiku 5.5", "Fastest for quick answers"), catalog("claude", "claude-sonnet-5-5", "Sonnet 5.5", "Smart, efficient model for everyday use"), { id: "zai/glm-5.3", label: "GLM-5.3", name: "GLM-5.3", detail: "Open-weight model from Z.ai", efforts: ["low", "medium", "high"], effort: "low", maxTokens: 1_000_000 }, { id: "moonshotai/kimi-k3", label: "Kimi K3", name: "Kimi K3", detail: "Open-weight model from Moonshot AI", efforts: ["low", "high"], effort: "low", maxTokens: 131_072 }] },
   { id: "codex", label: "Codex", models: [catalog("codex", "gpt-6-luna", "Luna", "Fast for everyday questions"), catalog("codex", "gpt-6.1-sol", "Sol", "Thinks longer for harder problems"), catalog("codex", "glm-5.3", "GLM-5.3", "Open-weight model from Z.ai"), catalog("codex", "kimi-k3", "Kimi K3", "Open-weight model from Moonshot AI")] },
+];
+
+function native(harness: ModelProvider, id: string, label: string, detail: string): Model {
+  const entry = models.harnesses.find(candidate => candidate.id === harness)?.models.find(candidate => candidate.id === id);
+  if (!entry) throw new Error(`nanocode-ts's ${harness} catalog has no ${id}`);
+  return { id, label, name: entry.name, detail, efforts: entry.efforts, effort: entry.effort };
+}
+
+export const planHarnesses: { id: ModelProvider; label: string; models: Model[] }[] = harnesses.map(harness => ({
+  ...harness,
+  models: (models.harnesses.find(candidate => candidate.id === harness.id)?.models ?? [])
+    .filter(model => Plans.serves(harness.id, model.id))
+    .map(model => ({ id: model.id, label: model.name, name: model.name, efforts: model.efforts, effort: model.effort })),
+}));
+
+export const walletHarnesses: { id: ModelProvider; label: string; models: Model[] }[] = [
+  { id: "claude", label: "Claude", models: [native("claude", "claude-haiku-5-5", "Haiku 5.5", "Fastest for quick answers"), native("claude", "claude-sonnet-5-5", "Sonnet 5.5", "Smart, efficient model for everyday use"), native("claude", "claude-opus-5-5", "Opus 5.5", "Most capable for complex work")] },
+  { id: "codex", label: "Codex", models: [native("codex", "gpt-6-luna", "Luna", "Fast for everyday questions"), native("codex", "gpt-6.1-sol", "Sol", "Thinks longer for harder problems")] },
 ];
 
 export const provider: ModelProvider = process.env.NANOCODE_PROVIDER === "codex" ? "codex" : "claude";

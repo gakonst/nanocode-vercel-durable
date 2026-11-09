@@ -5,7 +5,7 @@ import { Keyring } from "nanocode-ts/machines";
 import { Agent, type Theme } from "nanocode-ts/react/agent";
 import * as Transport from "nanocode-ts/vercel/transport";
 import { href } from "@/lib/base";
-import { defaultSelection, harnesses } from "@/lib/settings";
+import { defaultSelection, harnesses, planHarnesses, walletHarnesses } from "@/lib/settings";
 
 const PROMPTS = [
   "Clone vercel/ai and chart its largest source files with Python",
@@ -22,7 +22,7 @@ export default function Demo(props: { chaos?: boolean; needsToken: boolean; them
         else if (event.type === "effort" && typeof event.thinking === "string") note("tool", `Reasoning effort is ${event.thinking} from the next turn.`);
       }}
       connect={({ headers, selection, session }) => {
-        const transport = Transport.create({ chaosUrl: href("/api/chaos"), hands: true, headers, selection: () => ({ effort: selection().thinking, harness: selection().harness, model: selection().model }), session, url: href("/api/chat") });
+        const transport = Transport.create({ chaosUrl: href("/api/chaos"), hands: true, headers, selection: () => ({ effort: selection().thinking, harness: selection().harness, model: selection().model, payer: selection().payer }), session, url: href("/api/chat") });
         return {
           keyring: Keyring.create({ headers, scope: async () => { const id = await transport.open(); return id ? { sessionId: id } : undefined; }, url: href("/api/keys") }),
           plans: Plans.create({ headers, url: href("/api/plans") }),
@@ -34,6 +34,7 @@ export default function Demo(props: { chaos?: boolean; needsToken: boolean; them
       footer={props.title && <Footer title={props.title} />}
       harnesses={harnesses}
       model={defaultSelection.model}
+      planHarnesses={planHarnesses}
       prompts={PROMPTS}
       scripts
       storage="nanocode-vercel-durable"
@@ -41,6 +42,7 @@ export default function Demo(props: { chaos?: boolean; needsToken: boolean; them
       {...(props.title ? { title: props.title } : {})}
       token={props.needsToken}
       wallet={{ name: "nanocode on Vercel", relay: href("/api/device/"), websiteUrl: "https://nanocode.xyz/vercel/" }}
+      walletHarnesses={walletHarnesses}
     />
   );
 }

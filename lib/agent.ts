@@ -4,7 +4,7 @@ import { Wallets } from "nanocode-ts/machines/vercel";
 import * as Account from "nanocode-ts/machines/server";
 import { App } from "nanocode-ts/vercel";
 import { href } from "./base.ts";
-import { defaultSelection, harnesses } from "./settings.ts";
+import { defaultSelection, harnesses, planHarnesses, walletHarnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
 
 export const appTools = (record: (charge: Charge) => Promise<void> | void): HostTool[] => [chargeTool(record)];
@@ -34,6 +34,8 @@ export const nanocode = App.create({
   account: request => Account.visitor(request),
   plans: { prefix: href("/api/plans") },
   harnesses,
+  payerHarnesses: { plan: planHarnesses, wallet: walletHarnesses },
+  wallet: wallets.model,
   defaultSelection,
   tools: appTools(charge => console.log(JSON.stringify({ charge }))),
   report: drive => console.log(JSON.stringify({ drive })),
