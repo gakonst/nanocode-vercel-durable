@@ -1,5 +1,5 @@
+import { Demo } from "../../_demo/client";
 import { clone } from "../../_clones/metadata";
-import { Client } from "./client";
 
 export const dynamic = "force-dynamic";
 
@@ -10,5 +10,5 @@ export const metadata = clone({
 });
 
 export default function Page() {
-  return <Client needsToken={!!process.env.CHAT_TOKEN} />;
+  return <Demo needsToken={!!process.env.CHAT_TOKEN} theme="codex" title="ChatGPT-style demo" />;
 }
