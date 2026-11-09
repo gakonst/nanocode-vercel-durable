@@ -1,4 +1,5 @@
 import { Block, Card, Cards, Diagram, Docs } from "nanocode-ts/react/site";
+import { render } from "ondine/compiler";
 import { href } from "@/lib/base";
 import { pageMetadata } from "@/lib/metadata";
 
@@ -8,14 +9,14 @@ export const metadata = pageMetadata({
   title: "How It Works · nanocode on Vercel",
 });
 
-const diagram = `browser ─POST─▶ chat route ─drive─▶ nanocode-ts ─▶ AI Gateway
-                    │                   │
-                    │ send              │ SQL batches, tool steps
-                    ▼                   ▼
-             Workflow run: the session's event log
-                    ▲
-                    │ queue delivery when a Function dies
-                flow route ─drive─▶ replays the log, ends the turn`;
+const diagram = render(`flowchart LR
+  browser[/Browser/] -->|POST| chat[Chat route]
+  chat -->|drive| ts[nanocode-ts]
+  ts --> gateway[AI Gateway]
+  chat -->|send| run[(Workflow run: the session's event log)]
+  ts -->|SQL batches, tool steps| run
+  run -. queue delivery when a Function dies .-> flow[Flow route]
+  flow -->|replays the log, ends the turn| run`, { idPrefix: "overview" }).svg;
 
 const journal = `// 1. Run the transaction on the drive's in-memory database
 const before = sql.version()
@@ -68,7 +69,7 @@ export default function HowItWorks() {
       <p>
         When a Function dies, a queue message delivers the session to the flow route. That drive reads the log, rebuilds the agent&apos;s database from it, and finishes the turn.
       </p>
-      <Diagram>{diagram}</Diagram>
+      <Diagram svg={diagram} />
       <p>
         To try it, open the <a href={href("/")}>home page</a>, press &quot;Kill the next tool call&quot;, then ask for a charge. The Function dies during the charge, a new one takes the turn over, and the agent reports that the charge may have gone through.
       </p>
