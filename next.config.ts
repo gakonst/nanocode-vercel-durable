@@ -9,8 +9,11 @@ const config: NextConfig = {
   assetPrefix: basePath,
   env: { NANOCODE_WASM_HASH: createHash("sha256").update(readFileSync("node_modules/nanocode-ts/dist/nanocode_wasm.wasm")).digest("hex").slice(0, 20) },
   outputFileTracingIncludes: { "/**": ["./node_modules/pyodide/**"] },
-  serverExternalPackages: ["ondine", "pyodide"],
-  redirects: async () => [{ destination: basePath, permanent: false, source: "/" }],
+  serverExternalPackages: ["pyodide"],
+  redirects: async () => [
+    { destination: basePath, permanent: false, source: "/" },
+    { destination: "https://nanocode.xyz/experiments/durable-nanocode-on-vercel", permanent: true, source: `${basePath}/how-it-works` },
+  ],
   rewrites: async () => [
     { destination: "/", missing: [{ key: "theme", type: "query" }], source: basePath },
     { destination: "/", has: [{ key: "theme", type: "query", value: "nanocode" }], source: basePath },

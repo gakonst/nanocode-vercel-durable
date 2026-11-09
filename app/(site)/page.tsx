@@ -28,7 +28,7 @@ export default function Home() {
       </p>
 
       <p>
-        <a href={href("/how-it-works")}>Read how it works →</a>
+        <a href="https://nanocode.xyz/experiments/durable-nanocode-on-vercel">Read how it works →</a>
       </p>
     </Page>
   );
