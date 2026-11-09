@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import "nanocode-ts/react/zyzz.css";
-import { Header, Main, origin, styles } from "nanocode-ts/react/site";
+import "nds/zyzz.css";
+import { Header, Main, origin, styles } from "nds/site";
 import type { ReactNode } from "react";
 import { href } from "@/lib/base";
 import "./fonts";

@@ -1,7 +1,7 @@
 import { href } from "@/lib/base";
 import { pageMetadata } from "@/lib/metadata";
 import { Demo } from "../_demo/client";
-import { Demos, Lead, Page, Title } from "nanocode-ts/react/site";
+import { Demos, Lead, Page, Title } from "nds/site";
 
 export const dynamic = "force-dynamic";
 

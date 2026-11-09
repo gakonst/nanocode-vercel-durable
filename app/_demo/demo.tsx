@@ -2,7 +2,7 @@
 
 import { Plans } from "nanocode-ts/client";
 import { Keyring } from "nanocode-ts/machines";
-import { Agent, type Theme } from "nanocode-ts/react/agent";
+import { Agent, type Theme } from "nds/agent";
 import * as Transport from "nanocode-ts/vercel/transport";
 import { href } from "@/lib/base";
 import { defaultSelection, harnesses, planHarnesses, walletHarnesses } from "@/lib/settings";
