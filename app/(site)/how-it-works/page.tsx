@@ -58,7 +58,7 @@ export default function HowItWorks() {
     <Docs>
       <h1>How It Works</h1>
       <p>
-        nanocode on Vercel runs a nanocode agent in Vercel Functions on <a href="https://github.com/vercel-labs/durable-harness">durable-harness</a>. Every SQLite write of the agent is a step in the session&apos;s Workflow run, so a turn that loses its Function continues in another one from the log. Its source is <a href="https://github.com/gakonst/nanocode-vercel-durable">gakonst/nanocode-vercel-durable</a>.
+        nanocode on Vercel runs a nanocode agent in Vercel Functions on <a href="https://github.com/vercel-labs/durable-harness">durable-harness</a>. Every SQLite write of the agent is a step in the session&apos;s Workflow run, so a turn that loses its Function continues in another one from the log. Its source is <a href="https://github.com/nanocodexyz/durable-vercel">nanocodexyz/durable-vercel</a>.
       </p>
 
       <h2>Overview</h2>
@@ -147,8 +147,8 @@ export default function HowItWorks() {
 
       <h2>More</h2>
       <Cards>
-        <Card href="https://github.com/gakonst/nanocode-vercel-durable" title="Source →">The app, its tools and the crash drill.</Card>
-        <Card href="https://github.com/gakonst/nanocode-ts" title="nanocode-ts →">The harness and the journal, as nanocode-ts/vercel.</Card>
+        <Card href="https://github.com/nanocodexyz/durable-vercel" title="Source →">The app, its tools and the crash drill.</Card>
+        <Card href="https://github.com/nanocodexyz/nanocode-ts" title="nanocode-ts →">The harness and the journal, as nanocode-ts/vercel.</Card>
         <Card href="https://vercel.com/blog/making-every-harness-durable" title="durable-harness →">How Vercel makes Pi, OpenCode, Claude Code and Codex durable.</Card>
         <Card href="https://nanocode.xyz/cloudflare/" title="nanocode on Cloudflare →">The same agent in Durable Objects.</Card>
         <Card href="https://nanocode.xyz/docs/introduction/getting-started" title="nanocode docs →">The SDK, its runtime and nanocode-ts.</Card>
