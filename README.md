@@ -22,7 +22,7 @@
 ```sh
 npm install
 npm run dev       # next dev, at http://localhost:3000
-npm run drill     # Kill the server mid-turn against a scripted model, and check the turn
+npm run drill     # Kill a turn midway and check that it resumes
 npx vercel deploy # Deploy to a Vercel project
 ```
 
