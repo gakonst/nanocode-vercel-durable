@@ -1,0 +1,9 @@
+flowchart LR
+  accTitle: A Function appends each journal write to the Workflow run, and when it dies the queue starts another that replays the run
+  request[/POST a prompt/] --> fn1[Function A]
+  fn1 -->|replay batches| db1[(SQLite in memory)]
+  fn1 -->|sql:1, sql:2, ...| world[(Workflow run)]
+  fn1 -. dies mid-turn .-> queue[Queue]
+  queue --> fn2[Function B]
+  world -->|replay| fn2
+  fn2 -->|sql:n+1| world
