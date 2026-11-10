@@ -1,7 +1,7 @@
 import { href } from "@/lib/base";
 import { pageMetadata } from "@/lib/metadata";
 import { Demo } from "../_demo/client";
-import { Demos, Links, Page, Points, Title } from "nds/site";
+import { Demos, Links, Page, Points, Terminal, Title } from "nds/site";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,9 @@ export default function Home() {
         <li><strong>Yours to connect.</strong> Connect adds a Tempo Wallet, your ChatGPT or Claude plan, or your own machine.</li>
       </Points>
 
-      <Demo chaos={process.env.HARNESS_CHAOS === "1"} needsToken={!!process.env.CHAT_TOKEN} theme="nanocode" />
+      <Terminal>
+        <Demo chaos={process.env.HARNESS_CHAOS === "1"} needsToken={!!process.env.CHAT_TOKEN} theme="nanocode" />
+      </Terminal>
 
       <Links>
         <a href="https://nanocode.xyz/experiments/durable-nanocode-on-vercel">How it works</a>
