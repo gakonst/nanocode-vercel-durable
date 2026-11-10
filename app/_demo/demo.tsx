@@ -5,7 +5,7 @@ import { Keyring } from "nanocode-ts/machines";
 import { Agent, type Theme } from "nds/agent";
 import * as Transport from "nanocode-ts/vercel/transport";
 import { href } from "@/lib/base";
-import { defaultSelection, harnesses, planHarnesses, walletHarnesses } from "@/lib/settings";
+import { defaultSelection, harnesses, planHarnesses } from "@/lib/settings";
 
 const PROMPTS = [
   "Clone vercel/ai and chart its largest source files with Python",
@@ -42,7 +42,6 @@ export default function Demo(props: { chaos?: boolean; needsToken: boolean; them
       {...(props.title ? { title: props.title } : {})}
       token={props.needsToken}
       wallet={{ name: "nanocode on Vercel", relay: href("/api/device/"), websiteUrl: "https://nanocode.xyz/vercel/" }}
-      walletHarnesses={walletHarnesses}
     />
   );
 }
