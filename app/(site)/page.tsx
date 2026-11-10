@@ -1,7 +1,7 @@
 import { href } from "@/lib/base";
 import { pageMetadata } from "@/lib/metadata";
 import { Demo } from "../_demo/client";
-import { Demos, Lead, Page, Title } from "nds/site";
+import { Demos, Links, Page, Points, Title } from "nds/site";
 
 export const dynamic = "force-dynamic";
 
@@ -17,19 +17,23 @@ export default function Home() {
     <Page>
       <Title subtitle="Durable agents in Functions.">nanocode on Vercel</Title>
       <Demos current="vercel" />
-      <Lead>
-        This agent runs in a Vercel Function: the nanocode SDK compiled to WebAssembly, with its Claude or Codex harness driving the model you pick with /model, the open-weight GLM-5.3 and Kimi K3 among them, and its SQLite journal kept as steps of the session&apos;s Workflow run. When a Function dies mid-turn, the queue starts another that replays the log and finishes the turn. Its Code Mode cells run beside it in the Function: bash on a workspace kept in the same journal, git clone, Python with numpy and matplotlib, WebAssembly, and a fetch, Mercator and the Tempo gateway that pay MPP services from your Tempo Wallet, whose access key the session keeps encrypted so turns go on paying after you close the tab. Its source is <a href="https://github.com/nanocodexyz/durable-vercel">nanocodexyz/durable-vercel</a>.
-      </Lead>
+      <Points>
+        <li><strong>One Workflow run per session.</strong> The nanocode SDK as WebAssembly in a Function, with its journal kept as the run&apos;s steps.</li>
+        <li><strong>Survives a dead Function.</strong> Pick &quot;Kill the next tool call&quot; and another Function replays the log and finishes the turn.</li>
+        <li><strong>A shell without a machine.</strong> Cells run bash, git, Python and WebAssembly beside the agent.</li>
+        <li><strong>Yours to connect.</strong> Connect adds a Tempo Wallet, your ChatGPT or Claude plan, or your own machine.</li>
+      </Points>
 
       <Demo chaos={process.env.HARNESS_CHAOS === "1"} needsToken={!!process.env.CHAT_TOKEN} theme="nanocode" />
 
-      <p>
-        Also as a <a href={href("/chatgpt")}>ChatGPT-style</a> and a <a href={href("/claude")}>Claude-style</a> app.
-      </p>
-
-      <p>
-        <a href="https://nanocode.xyz/experiments/durable-nanocode-on-vercel">Read how it works →</a>
-      </p>
+      <Links>
+        <a href="https://nanocode.xyz/experiments/durable-nanocode-on-vercel">How it works</a>
+        <a href="https://nanocode.xyz/docs/guides/vercel">Build your own</a>
+        <a href="https://nanocode.xyz/#prompts">Prompts</a>
+        <a href="https://github.com/nanocodexyz/durable-vercel">Source</a>
+        <a href={href("/chatgpt")}>ChatGPT-style</a>
+        <a href={href("/claude")}>Claude-style</a>
+      </Links>
     </Page>
   );
 }
