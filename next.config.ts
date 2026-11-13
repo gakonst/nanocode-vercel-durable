@@ -8,7 +8,7 @@ import { basePath } from "./lib/base.ts";
 const config: NextConfig = {
   assetPrefix: basePath,
   env: { NANOCODE_WASM_HASH: createHash("sha256").update(readFileSync("node_modules/nanocode-ts/dist/nanocode_wasm.wasm")).digest("hex").slice(0, 20) },
-  outputFileTracingIncludes: { "/**": ["./node_modules/pyodide/**"] },
+  outputFileTracingIncludes: { "/**": ["./node_modules/nanocode-ts/dist/nanocode_wasm.wasm", "./node_modules/nanocode-ts/dist/psh.wasm", "./node_modules/nanocode-ts/dist/python.wasm", "./node_modules/pyodide/**"] },
   serverExternalPackages: ["pyodide"],
   redirects: async () => [
     { destination: basePath, permanent: false, source: "/" },
