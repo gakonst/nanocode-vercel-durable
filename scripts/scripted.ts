@@ -6,6 +6,7 @@ type Dispatch = Gateway.Dispatch;
 export type ScriptedRequest = {
   provider: "claude" | "codex";
   pid: number;
+  at: number;
   endpoint: string;
   model: string;
   effort?: string;
@@ -33,6 +34,13 @@ function plan(prompt: string | undefined, provider: "claude" | "codex") {
   return undefined;
 }
 
+const RUNNING = /^Script running with cell ID (\S+)/;
+
+const waits = (output: string) => {
+  const running = RUNNING.exec(output);
+  return running ? { name: "wait", input: { cell_id: running[1] } } : undefined;
+};
+
 const sse = (events: [string | null, unknown][]) => new Response(events.map(([event, data]) => (event ? `event: ${event}\n` : "") + `data: ${JSON.stringify(data)}\n\n`).join(""), { headers: { "content-type": "text/event-stream" } });
 
 const text = (content: unknown): string => typeof content === "string" ? content : Array.isArray(content) ? content.map(part => typeof part === "string" ? part : (part as { text?: string }).text ?? "").join("") : "";
@@ -44,14 +52,14 @@ export function scriptedDispatch(provider: "claude" | "codex", log: string): Dis
     const call = `${process.pid}_${calls++}`;
     const credential_free = !request.headers.some(([name]) => ["authorization", "x-api-key"].includes(name.toLowerCase()));
     const effort = provider === "claude" ? body.output_config?.effort ?? (body.thinking?.type === "disabled" ? "none" : undefined) : body.reasoning?.effort;
-    const record = (entry: Omit<ScriptedRequest, "provider" | "pid" | "endpoint" | "model" | "effort" | "credential_free">) => appendFileSync(log, `${JSON.stringify({ provider, pid: process.pid, endpoint: request.endpoint, model: body.model, effort, credential_free, ...entry })}\n`);
+    const record = (entry: Omit<ScriptedRequest, "provider" | "pid" | "at" | "endpoint" | "model" | "effort" | "credential_free">) => appendFileSync(log, `${JSON.stringify({ provider, pid: process.pid, at: Date.now(), endpoint: request.endpoint, model: body.model, effort, credential_free, ...entry })}\n`);
     if (provider === "claude") {
       const messages = body.messages as { role: string; content: unknown }[];
       const last = messages.at(-1)!;
       const result = Array.isArray(last.content) ? (last.content as { type: string; content?: unknown }[]).find(block => block.type === "tool_result") : undefined;
       const prompt = [...messages].reverse().map(message => message.role === "user" && Array.isArray(message.content) && (message.content as { type: string }[]).some(block => block.type === "tool_result") ? undefined : message.role === "user" ? text(message.content) : undefined).find(value => value !== undefined);
-      const tool = result ? undefined : plan(prompt, provider);
-      const answer = result ? `The tool answered: ${text(result.content)}` : tool ? `tool_use ${tool.name}` : "ok";
+      const tool = result ? waits(text(result.content)) : plan(prompt, provider);
+      const answer = tool ? `tool_use ${tool.name}` : result ? `The tool answered: ${text(result.content)}` : "ok";
       record({ items: messages.length, tools: (body.tools ?? []).map((tool: { name: string }) => tool.name), ...(prompt !== undefined ? { prompt } : {}), ...(result ? { tool_result: text(result.content) } : {}), answer });
       const block = tool
         ? [{ type: "tool_use", id: `toolu_${call}`, name: tool.name, input: {} }, { type: "input_json_delta", partial_json: JSON.stringify(tool.input) }]
@@ -67,10 +75,10 @@ export function scriptedDispatch(provider: "claude" | "codex", log: string): Dis
     }
     const items = body.input as { type: string; role?: string; content?: unknown; output?: unknown }[];
     const user = items.findLastIndex(item => item.type === "message" && item.role === "user");
-    const result = items.find((item, index) => index > user && (item.type === "function_call_output" || item.type === "custom_tool_call_output"));
+    const result = items.findLast((item, index) => index > user && (item.type === "function_call_output" || item.type === "custom_tool_call_output"));
     const prompt = user >= 0 ? text(items[user].content) : undefined;
-    const tool = result ? undefined : plan(prompt, provider);
-    const answer = result ? `The tool answered: ${text(result.output)}` : tool ? `function_call ${tool.name}` : "ok";
+    const tool = result ? waits(text(result.output)) : plan(prompt, provider);
+    const answer = tool ? `function_call ${tool.name}` : result ? `The tool answered: ${text(result.output)}` : "ok";
     const offered = (body.tools ?? items.flatMap(item => item.type === "additional_tools" ? (item as unknown as { tools: { name?: string }[] }).tools : [])).map((tool: { name?: string }) => tool.name ?? "");
     record({ items: items.length, tools: offered, ...(prompt !== undefined ? { prompt } : {}), ...(result ? { tool_result: text(result.output) } : {}), answer });
     const id = `resp_${call}`;

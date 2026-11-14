@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Journal } from "nanocode-ts/vercel";
@@ -15,7 +15,6 @@ const PROMPTS = { charge: "Please charge $42 for order 1001.", waiting: "Please 
 
 const UNKNOWN = /outcome (is )?unknown|interrupted by a host crash/;
 
-const KILL_INTO_WAIT_MS = 1000;
 
 const MODELS: Record<Provider, string> = { claude: "claude-haiku-5-5", codex: "gpt-6-luna" };
 
@@ -31,6 +30,16 @@ const lines = <T>(path: string): T[] => {
   try { return readFileSync(path, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as T); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
 };
+
+const entries = (path: string): string[] => {
+  try { return readdirSync(path); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
+};
+
+const committedSince = (data: string, since: number) => entries(join(data, "events")).some(run => entries(join(data, "events", run)).filter(file => file.endsWith(".json")).some(file => {
+  const event = JSON.parse(readFileSync(join(data, "events", run, file), "utf8")) as { eventType: string; createdAt: string; eventData?: { stepName?: string } };
+  return event.eventType === "step_completed" && event.eventData?.stepName?.endsWith("nanocode.sql") === true && Date.parse(event.createdAt) >= since;
+}));
 
 const args = process.argv.slice(2);
 if (args[0] === "child") await child(args[1] as "start" | "resume", args[2] as Scenario, args[3] as Provider, args[4] as Durability, args[5], args[6]);
@@ -138,9 +147,11 @@ async function orchestrate(providers: Provider[], durabilities: Durability[], sc
       while (lines(files.ledger).length === 0) await sleep(10);
     } else {
       while (lines(files.requests).length === 0) await sleep(10);
+      const asked = lines<ScriptedRequest>(files.requests)[0]!.at;
+      while (!committedSince(files.data, asked)) await sleep(10);
     }
     const charged_ms = performance.now() - startedAt;
-    await sleep(scenario === "charge" ? KILL_AFTER_CHARGE_MS : KILL_INTO_WAIT_MS);
+    if (scenario === "charge") await sleep(KILL_AFTER_CHARGE_MS);
     first.kill("SIGKILL");
     await exited(first);
     const second = launch(["resume", scenario, provider, durability, dir, sessionId]);
@@ -151,18 +162,19 @@ async function orchestrate(providers: Provider[], durabilities: Durability[], sc
     const after = requests.filter(request => request.pid === second.pid);
     const charges = lines(files.ledger);
     if (scenario === "waiting") {
-      const answered = after.find(request => request.tool_result !== undefined)?.tool_result ?? "";
+      const answered = after.findLast(request => request.tool_result !== undefined)?.tool_result ?? "";
+      const unknown = after.find(request => UNKNOWN.test(request.tool_result ?? ""))?.tool_result;
       const status = summary.turns[0]?.turn?.report.status;
       const found = [
         killed.length !== 1 && `the killed drive made ${killed.length} model requests`,
         after[0]?.tool_result === undefined && "the recovered drive asked the model for the cell again, so the cell's model receipt was lost",
         charges.length !== 1 && `${charges.length} charges in the ledger`,
         status !== "completed" && `the turn ended ${status}`,
-        UNKNOWN.test(answered) && `the cell had made no tool call when the drive was killed, yet the model was told: ${answered.slice(0, 200)}`,
+        unknown !== undefined && `the cell had made no tool call when the drive was killed, yet the model was told: ${unknown.slice(0, 200)}`,
         !answered.includes("charged $7.00") && "the model never got the charge's result",
       ].filter((failure): failure is string => typeof failure === "string").map(failure => `waiting ${provider} ${durability}: ${failure}`);
       failures.push(...found);
-      const result = { scenario, provider, durability, node: process.version, measured_at: new Date().toISOString(), session: sessionId, killed_ms: charged_ms + KILL_INTO_WAIT_MS, recovery_ms: summary.recovery_ms, charges: charges.length, tool_result_after_crash: answered, turn: summary.turns[0]?.turn?.report, failures: found };
+      const result = { scenario, provider, durability, node: process.version, measured_at: new Date().toISOString(), session: sessionId, killed_ms: charged_ms, recovery_ms: summary.recovery_ms, charges: charges.length, waits: after.filter(request => request.answer.endsWith(" wait")).length, tool_result_after_crash: answered, turn: summary.turns[0]?.turn?.report, failures: found };
       writeFileSync(join(dir, "report.json"), `${JSON.stringify({ ...result, effects: summary.effects, requests }, null, 2)}\n`);
       results.push(result);
       continue;
