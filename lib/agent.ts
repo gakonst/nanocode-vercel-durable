@@ -1,8 +1,8 @@
 import type { HostTool } from "durable-harness";
-import { upgradeWebSocket } from "@vercel/functions";
+import { getCache, upgradeWebSocket } from "@vercel/functions";
 import { Wallets } from "nanocode-ts/machines/vercel";
 import * as Account from "nanocode-ts/machines/server";
-import { App } from "nanocode-ts/vercel";
+import { App, Listings } from "nanocode-ts/vercel";
 import { href } from "./base.ts";
 import { defaultSelection, harnesses, planHarnesses } from "./settings.ts";
 import { type Charge, chargeTool } from "./tools.ts";
@@ -48,7 +48,7 @@ export const nanocode = App.create({
   marks: process.env.HARNESS_MARKS === "1",
   chaos: process.env.HARNESS_CHAOS === "1",
   authorize: token ? authorize : isPublic ? "public" : undefined,
-  mcp: wallets.mcp,
+  mcp: { ...wallets.mcp, store: Listings.store(getCache({ namespace: "nanocode-mcp" })) },
   ...(isPublic ? { maxPrompts: 20, maxPromptCharacters: 2000 } : {}),
 });
 
